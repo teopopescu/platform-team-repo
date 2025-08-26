@@ -1,0 +1,67 @@
+{
+  "data_products": {
+    "customer-analytics-data-product": {
+      "name": "customer-analytics",
+      "description": "Customer analytics and segmentation platform",
+      "owner_team": "data-science",
+      "contact": "data-science-team@company.com",
+      "aws_account_id": "123456789012",
+      "environments": ["dev", "staging", "prod"],
+      "terraform_path": "infrastructure",
+      "max_cost_per_month": 1000,
+      "approved_services": ["rds", "secretsmanager", "ec2", "s3", "lambda"],
+      "status": "active",
+      "created_at": "2024-01-15T10:00:00Z",
+      "updated_at": "2024-01-15T10:00:00Z"
+    },
+    "marketing-insights-data-product": {
+      "name": "marketing-insights", 
+      "description": "Marketing campaign performance insights",
+      "owner_team": "marketing-analytics",
+      "contact": "marketing-team@company.com",
+      "aws_account_id": "123456789012",
+      "environments": ["dev", "staging", "prod"],
+      "terraform_path": "infrastructure",
+      "max_cost_per_month": 500,
+      "approved_services": ["rds", "secretsmanager", "s3", "athena"],
+      "status": "active",
+      "created_at": "2024-01-20T14:30:00Z",
+      "updated_at": "2024-01-20T14:30:00Z"
+    },
+    "fraud-detection-data-product": {
+      "name": "fraud-detection",
+      "description": "Real-time fraud detection system",
+      "owner_team": "risk-management",
+      "contact": "risk-team@company.com", 
+      "aws_account_id": "123456789012",
+      "environments": ["dev", "staging", "prod"],
+      "terraform_path": "terraform",
+      "max_cost_per_month": 2000,
+      "approved_services": ["rds", "secretsmanager", "lambda", "kinesis", "dynamodb"],
+      "status": "active",
+      "created_at": "2024-02-01T09:15:00Z",
+      "updated_at": "2024-02-01T09:15:00Z"
+    },
+    "legacy-migration-data-product": {
+      "name": "legacy-migration",
+      "description": "Legacy system migration project",
+      "owner_team": "platform-engineering",
+      "contact": "platform-team@company.com",
+      "aws_account_id": "123456789012", 
+      "environments": ["dev"],
+      "terraform_path": "infra",
+      "max_cost_per_month": 100,
+      "approved_services": ["rds", "secretsmanager", "s3"],
+      "status": "deprecated",
+      "created_at": "2024-01-01T08:00:00Z",
+      "updated_at": "2024-02-15T16:45:00Z"
+    }
+  },
+  "metadata": {
+    "version": "1.0",
+    "last_updated": "2024-02-15T16:45:00Z",
+    "total_products": 4,
+    "active_products": 3,
+    "deprecated_products": 1
+  }
+}

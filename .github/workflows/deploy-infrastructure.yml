@@ -1,0 +1,234 @@
+name: Deploy Data Product Infrastructure
+
+on:
+  repository_dispatch:
+    types: [deploy-data-product]
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      
+    steps:
+    - name: Checkout platform repo
+      uses: actions/checkout@v4
+      
+    - name: Extract deployment details
+      run: |
+        echo "PRODUCT_REPO_NAME=${{ github.event.client_payload.product_repo_name }}" >> $GITHUB_ENV
+        echo "SOURCE_REPO=${{ github.event.client_payload.source_repo }}" >> $GITHUB_ENV
+        echo "SOURCE_REF=${{ github.event.client_payload.source_ref }}" >> $GITHUB_ENV
+        echo "CALLER_ARN=${{ github.event.client_payload.caller_arn }}" >> $GITHUB_ENV
+        echo "ENVIRONMENT=${{ github.event.client_payload.environment }}" >> $GITHUB_ENV
+        echo "TERRAFORM_PATH=${{ github.event.client_payload.terraform_path }}" >> $GITHUB_ENV
+        
+    - name: Validate against data products registry
+      run: |
+        echo "=== Validating Data Product Registration ==="
+        echo "Product Repository: ${{ env.PRODUCT_REPO_NAME }}"
+        echo "Source Repository: ${{ env.SOURCE_REPO }}"
+        echo "Environment: ${{ env.ENVIRONMENT }}"
+        echo "Terraform Path: ${{ env.TERRAFORM_PATH }}"
+        
+        # Check if product exists in registry
+        if ! jq -e ".data_products[\"${{ env.PRODUCT_REPO_NAME }}\"]" registry/valid-data-products.json > /dev/null; then
+          echo "❌ ERROR: Data product '${{ env.PRODUCT_REPO_NAME }}' not found in registry"
+          echo "Available products:"
+          jq -r '.data_products | keys[]' registry/valid-data-products.json
+          exit 1
+        fi
+        
+        # Get product details
+        PRODUCT_DETAILS=$(jq ".data_products[\"${{ env.PRODUCT_REPO_NAME }}\"]" registry/valid-data-products.json)
+        PRODUCT_STATUS=$(echo "$PRODUCT_DETAILS" | jq -r '.status')
+        EXPECTED_TERRAFORM_PATH=$(echo "$PRODUCT_DETAILS" | jq -r '.terraform_path')
+        ALLOWED_ENVIRONMENTS=$(echo "$PRODUCT_DETAILS" | jq -r '.environments[]')
+        
+        echo "Product Status: $PRODUCT_STATUS"
+        echo "Expected Terraform Path: $EXPECTED_TERRAFORM_PATH"
+        echo "Allowed Environments: $ALLOWED_ENVIRONMENTS"
+        
+        # Validate product is active
+        if [ "$PRODUCT_STATUS" != "active" ]; then
+          echo "❌ ERROR: Data product status is '$PRODUCT_STATUS', must be 'active'"
+          exit 1
+        fi
+        
+        # Validate environment is allowed
+        if ! echo "$ALLOWED_ENVIRONMENTS" | grep -q "^${{ env.ENVIRONMENT }}$"; then
+          echo "❌ ERROR: Environment '${{ env.ENVIRONMENT }}' not allowed for this product"
+          echo "Allowed environments: $ALLOWED_ENVIRONMENTS"
+          exit 1
+        fi
+        
+        # Validate terraform path matches expected
+        if [ "${{ env.TERRAFORM_PATH }}" != "$EXPECTED_TERRAFORM_PATH" ]; then
+          echo "❌ ERROR: Terraform path '${{ env.TERRAFORM_PATH }}' doesn't match expected '$EXPECTED_TERRAFORM_PATH'"
+          exit 1
+        fi
+        
+        echo "✅ Data product validation passed"
+        
+        # Export additional product metadata
+        echo "PRODUCT_NAME=$(echo "$PRODUCT_DETAILS" | jq -r '.name')" >> $GITHUB_ENV
+        echo "OWNER_TEAM=$(echo "$PRODUCT_DETAILS" | jq -r '.owner_team')" >> $GITHUB_ENV
+        echo "MAX_COST=$(echo "$PRODUCT_DETAILS" | jq -r '.max_cost_per_month')" >> $GITHUB_ENV
+        echo "APPROVED_SERVICES=$(echo "$PRODUCT_DETAILS" | jq -r '.approved_services | join(",")')" >> $GITHUB_ENV
+        
+    - name: Configure AWS credentials (Platform Team)
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-platform-team-role
+        role-session-name: PlatformTeamDeployment
+        aws-region: us-east-1
+        
+    - name: Verify platform team identity
+      run: |
+        echo "=== Platform Team Identity ==="
+        aws sts get-caller-identity
+        PLATFORM_ARN=$(aws sts get-caller-identity --query Arn --output text)
+        echo "Platform ARN: $PLATFORM_ARN"
+        echo "PLATFORM_ARN=$PLATFORM_ARN" >> $GITHUB_ENV
+        
+    - name: Validate data product identity  
+      run: |
+        echo "=== Identity Validation ==="
+        echo "Caller ARN: ${{ env.CALLER_ARN }}"
+        echo "Source Repository: ${{ env.SOURCE_REPO }}"
+        echo "Expected Repository: ${{ env.PRODUCT_REPO_NAME }}"
+        
+        # Validate that the caller is using the expected data product role
+        if [[ "${{ env.CALLER_ARN }}" == *"github-actions-data-product-role"* ]]; then
+          echo "✅ Caller identity validated - using data product role"
+        else
+          echo "❌ Invalid caller identity - not using expected data product role"
+          exit 1
+        fi
+        
+        # Validate that the source repo matches the registered product repo name
+        EXPECTED_REPO_PATTERN="${{ github.repository_owner }}/${{ env.PRODUCT_REPO_NAME }}"
+        if [[ "${{ env.SOURCE_REPO }}" == "$EXPECTED_REPO_PATTERN" ]]; then
+          echo "✅ Repository name validated - matches registered product"
+        else
+          echo "❌ Repository name doesn't match registered product"
+          echo "Expected: $EXPECTED_REPO_PATTERN" 
+          echo "Actual: ${{ env.SOURCE_REPO }}"
+          exit 1
+        fi
+        
+    - name: Checkout data product repository
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ env.SOURCE_REPO }}
+        ref: ${{ env.SOURCE_REF }}
+        path: data-product-repo
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Validate data product Terraform structure
+      run: |
+        echo "=== Validating Data Product Terraform ==="
+        TERRAFORM_DIR="data-product-repo/${{ env.TERRAFORM_PATH }}"
+        
+        if [ ! -d "$TERRAFORM_DIR" ]; then
+          echo "❌ ERROR: Terraform directory '$TERRAFORM_DIR' not found"
+          exit 1
+        fi
+        
+        # Check for required Terraform files
+        if [ ! -f "$TERRAFORM_DIR/main.tf" ]; then
+          echo "❌ ERROR: main.tf not found in $TERRAFORM_DIR"
+          exit 1
+        fi
+        
+        echo "✅ Terraform structure validated"
+        echo "Files found in $TERRAFORM_DIR:"
+        ls -la "$TERRAFORM_DIR"
+        
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.0
+        
+    - name: Terraform Init (Data Product Infrastructure)
+      run: |
+        cd data-product-repo/${{ env.TERRAFORM_PATH }}
+        terraform init
+        
+    - name: Terraform Plan (Data Product Infrastructure)
+      run: |
+        cd data-product-repo/${{ env.TERRAFORM_PATH }}
+        terraform plan \
+          -var="product_name=${{ env.PRODUCT_NAME }}" \
+          -var="environment=${{ env.ENVIRONMENT }}" \
+          -var="owner_team=${{ env.OWNER_TEAM }}" \
+          -var="source_repo=${{ env.SOURCE_REPO }}" \
+          -var="source_ref=${{ env.SOURCE_REF }}" \
+          -var="max_cost_budget=${{ env.MAX_COST }}" \
+          -out=tfplan
+        
+        echo "=== Terraform Plan Summary ==="
+        terraform show -no-color tfplan
+          
+    - name: Terraform Apply (Data Product Infrastructure) 
+      run: |
+        cd data-product-repo/${{ env.TERRAFORM_PATH }}
+        terraform apply -auto-approve tfplan
+        
+    - name: Get deployment outputs
+      run: |
+        cd data-product-repo/${{ env.TERRAFORM_PATH }}
+        echo "=== Deployment Outputs ==="
+        terraform output -json > outputs.json
+        cat outputs.json
+        
+        # Extract key outputs safely
+        OUTPUTS_JSON=$(cat outputs.json)
+        echo "TERRAFORM_OUTPUTS<<EOF" >> $GITHUB_ENV
+        echo "$OUTPUTS_JSON" >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
+        
+    - name: Deploy data product application
+      run: |
+        echo "=== Deploying Data Product Application ==="
+        echo "Product: ${{ env.PRODUCT_NAME }}"
+        echo "Environment: ${{ env.ENVIRONMENT }}"
+        echo "Owner Team: ${{ env.OWNER_TEAM }}"
+        echo ""
+        echo "Application files from data product repo:"
+        ls -la data-product-repo/
+        
+        # Look for application files
+        cd data-product-repo
+        if [ -f "app.py" ]; then
+          echo "Found Python application"
+        fi
+        if [ -f "package.json" ]; then
+          echo "Found Node.js application"
+        fi
+        if [ -f "Dockerfile" ]; then
+          echo "Found Docker configuration"
+        fi
+        if [ -f "requirements.txt" ]; then
+          echo "Found Python requirements"
+        fi
+        
+        echo ""
+        echo "This would deploy the application using the infrastructure created by Terraform"
+        echo "Infrastructure outputs available for application deployment"
+        
+    - name: Send deployment notification
+      run: |
+        echo "=== Deployment Complete ==="
+        echo "Product: ${{ env.PRODUCT_NAME }}"
+        echo "Environment: ${{ env.ENVIRONMENT }}"
+        echo "Owner Team: ${{ env.OWNER_TEAM }}"
+        echo "Status: SUCCESS"
+        echo "Platform ARN: ${{ env.PLATFORM_ARN }}"
+        echo "Data Product ARN: ${{ env.CALLER_ARN }}"
+        echo "Source Repository: ${{ env.SOURCE_REPO }}"
+        echo "Source Reference: ${{ env.SOURCE_REF }}"
+        echo ""
+        echo "Terraform outputs:"
+        echo "${{ env.TERRAFORM_OUTPUTS }}"
