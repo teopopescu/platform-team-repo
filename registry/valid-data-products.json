@@ -1,7 +1,7 @@
 {
   "data_products": {
-    "customer-analytics-data-product": {
-      "name": "customer-analytics",
+    "test-data-product-repo": {
+      "name": "test-data-product-repo",
       "description": "Customer analytics and segmentation platform",
       "owner_team": "data-science",
       "contact": "data-science-team@company.com",
