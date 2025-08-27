@@ -1,0 +1,186 @@
+name: 'Trigger Platform Deployment'
+description: 'Custom action to trigger platform team deployment with validation'
+author: 'Platform Team'
+
+inputs:
+  platform-repo:
+    description: 'Platform repository (owner/repo)'
+    required: true
+  github-token:
+    description: 'GitHub token with repository dispatch permissions'
+    required: true
+  caller-arn:
+    description: 'AWS ARN of the calling role'
+    required: true
+  environment:
+    description: 'Target environment (dev/staging/prod)'
+    required: true
+    default: 'dev'
+  terraform-path:
+    description: 'Path to Terraform configuration'
+    required: false
+    default: 'infrastructure'
+  wait-for-completion:
+    description: 'Wait for deployment to complete'
+    required: false
+    default: 'false'
+
+outputs:
+  deployment-id:
+    description: 'Deployment workflow run ID'
+    value: ${{ steps.trigger.outputs.deployment-id }}
+  deployment-status:
+    description: 'Deployment status'
+    value: ${{ steps.monitor.outputs.status }}
+  deployment-url:
+    description: 'URL to monitor deployment'
+    value: ${{ steps.trigger.outputs.deployment-url }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        echo "=== Validating Deployment Request ==="
+        
+        # Validate ARN format
+        if [[ ! "${{ inputs.caller-arn }}" =~ ^arn:aws:iam::[0-9]+:role/.+ ]]; then
+          echo "❌ Invalid ARN format: ${{ inputs.caller-arn }}"
+          exit 1
+        fi
+        
+        # Validate environment
+        if [[ ! "${{ inputs.environment }}" =~ ^(dev|staging|prod)$ ]]; then
+          echo "❌ Invalid environment. Must be dev, staging, or prod"
+          exit 1
+        fi
+        
+        # Extract repository info
+        REPO_NAME="${{ github.repository }}"
+        PRODUCT_REPO_NAME=$(echo $REPO_NAME | cut -d'/' -f2)
+        
+        echo "Product Repository: $PRODUCT_REPO_NAME"
+        echo "Environment: ${{ inputs.environment }}"
+        echo "Terraform Path: ${{ inputs.terraform-path }}"
+        echo "Caller ARN: ${{ inputs.caller-arn }}"
+        
+        # Export for next steps
+        echo "PRODUCT_REPO_NAME=$PRODUCT_REPO_NAME" >> $GITHUB_ENV
+        
+        echo "✅ Input validation completed"
+        
+    - name: Trigger platform deployment
+      id: trigger
+      shell: bash
+      run: |
+        echo "=== Triggering Platform Deployment ==="
+        
+        # Prepare payload
+        PAYLOAD=$(cat <<EOF
+        {
+          "product_repo_name": "${{ env.PRODUCT_REPO_NAME }}",
+          "source_repo": "${{ github.repository }}",
+          "source_ref": "${{ github.sha }}",
+          "caller_arn": "${{ inputs.caller-arn }}",
+          "environment": "${{ inputs.environment }}",
+          "terraform_path": "${{ inputs.terraform-path }}",
+          "triggered_by": "${{ github.actor }}",
+          "trigger_run_id": "${{ github.run_id }}",
+          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        }
+        EOF
+        )
+        
+        echo "Payload:"
+        echo "$PAYLOAD" | jq '.'
+        
+        # Trigger repository dispatch
+        RESPONSE=$(curl -X POST \
+          -H "Authorization: token ${{ inputs.github-token }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          -H "Content-Type: application/json" \
+          "https://api.github.com/repos/${{ inputs.platform-repo }}/dispatches" \
+          -d "{\"event_type\": \"deploy-data-product\", \"client_payload\": $PAYLOAD}")
+        
+        # Check if request was successful
+        if [ $? -eq 0 ]; then
+          echo "✅ Platform deployment triggered successfully"
+          DEPLOYMENT_URL="https://github.com/${{ inputs.platform-repo }}/actions"
+          echo "deployment-url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
+          echo "deployment-id=pending" >> $GITHUB_OUTPUT
+          echo "Monitor deployment at: $DEPLOYMENT_URL"
+        else
+          echo "❌ Failed to trigger platform deployment"
+          echo "Response: $RESPONSE"
+          exit 1
+        fi
+        
+    - name: Wait for deployment (optional)
+      id: monitor
+      if: inputs.wait-for-completion == 'true'
+      shell: bash
+      run: |
+        echo "=== Monitoring Deployment Status ==="
+        echo "Waiting for deployment to start..."
+        
+        # Wait for deployment to appear in platform repo
+        PLATFORM_REPO="${{ inputs.platform-repo }}"
+        MAX_ATTEMPTS=30
+        ATTEMPT=0
+        
+        while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+          echo "Checking for deployment... (attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS)"
+          
+          # Get recent workflow runs
+          RUNS=$(curl -s \
+            -H "Authorization: token ${{ inputs.github-token }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/$PLATFORM_REPO/actions/runs?per_page=10")
+          
+          # Look for our deployment (could match by trigger time or payload)
+          DEPLOYMENT_RUN=$(echo "$RUNS" | jq -r '.workflow_runs[] | select(.name == "Deploy Data Product Infrastructure") | select(.created_at > "'$(date -u -d '2 minutes ago' +%Y-%m-%dT%H:%M:%SZ)'") | .id' | head -1)
+          
+          if [ "$DEPLOYMENT_RUN" != "" ] && [ "$DEPLOYMENT_RUN" != "null" ]; then
+            echo "Found deployment run: $DEPLOYMENT_RUN"
+            echo "deployment-id=$DEPLOYMENT_RUN" >> $GITHUB_OUTPUT
+            
+            # Monitor status
+            while true; do
+              RUN_STATUS=$(curl -s \
+                -H "Authorization: token ${{ inputs.github-token }}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/repos/$PLATFORM_REPO/actions/runs/$DEPLOYMENT_RUN" | jq -r '.status')
+              
+              echo "Deployment status: $RUN_STATUS"
+              
+              case $RUN_STATUS in
+                "completed")
+                  CONCLUSION=$(curl -s \
+                    -H "Authorization: token ${{ inputs.github-token }}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/$PLATFORM_REPO/actions/runs/$DEPLOYMENT_RUN" | jq -r '.conclusion')
+                  echo "status=$CONCLUSION" >> $GITHUB_OUTPUT
+                  echo "✅ Deployment completed with status: $CONCLUSION"
+                  exit 0
+                  ;;
+                "in_progress"|"queued")
+                  echo "Deployment in progress..."
+                  sleep 30
+                  ;;
+                *)
+                  echo "❌ Unexpected deployment status: $RUN_STATUS"
+                  echo "status=failed" >> $GITHUB_OUTPUT
+                  exit 1
+                  ;;
+              esac
+            done
+          fi
+          
+          ATTEMPT=$((ATTEMPT + 1))
+          sleep 10
+        done
+        
+        echo "❌ Deployment not found after $MAX_ATTEMPTS attempts"
+        echo "status=not_found" >> $GITHUB_OUTPUT
+        exit 1

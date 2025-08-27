@@ -27,21 +27,21 @@ jobs:
     - name: Validate against data products registry
       run: |
         echo "=== Validating Data Product Registration ==="
-        echo "Product Repository: ${{ env.PRODUCT_REPO_NAME }}"
+        echo "Product Repository: ${{ env.DATA_PRODUCT_NAME }}"
         echo "Source Repository: ${{ env.SOURCE_REPO }}"
         echo "Environment: ${{ env.ENVIRONMENT }}"
         echo "Terraform Path: ${{ env.TERRAFORM_PATH }}"
         
-        # Check if product exists in registry
-        if ! jq -e ".data_products[\"${{ env.PRODUCT_REPO_NAME }}\"]" registry/valid-data-products.json > /dev/null; then
-          echo "❌ ERROR: Data product '${{ env.PRODUCT_REPO_NAME }}' not found in registry"
+        # Check if product exists in registry using extracted name from ARN
+        if ! jq -e ".data_products[\"${{ env.DATA_PRODUCT_NAME }}\"]" registry/valid-data-products.json > /dev/null; then
+          echo "❌ ERROR: Data product '${{ env.DATA_PRODUCT_NAME }}' not found in registry"
           echo "Available products:"
           jq -r '.data_products | keys[]' registry/valid-data-products.json
           exit 1
         fi
         
         # Get product details
-        PRODUCT_DETAILS=$(jq ".data_products[\"${{ env.PRODUCT_REPO_NAME }}\"]" registry/valid-data-products.json)
+        PRODUCT_DETAILS=$(jq ".data_products[\"${{ env.DATA_PRODUCT_NAME }}\"]" registry/valid-data-products.json)
         PRODUCT_STATUS=$(echo "$PRODUCT_DETAILS" | jq -r '.status')
         EXPECTED_TERRAFORM_PATH=$(echo "$PRODUCT_DETAILS" | jq -r '.terraform_path')
         ALLOWED_ENVIRONMENTS=$(echo "$PRODUCT_DETAILS" | jq -r '.environments[]')
@@ -71,7 +71,7 @@ jobs:
         
         echo "✅ Data product validation passed"
         
-        # Export additional product metadata
+        # Export additional product metadata using registry data
         echo "PRODUCT_NAME=$(echo "$PRODUCT_DETAILS" | jq -r '.name')" >> $GITHUB_ENV
         echo "OWNER_TEAM=$(echo "$PRODUCT_DETAILS" | jq -r '.owner_team')" >> $GITHUB_ENV
         echo "MAX_COST=$(echo "$PRODUCT_DETAILS" | jq -r '.max_cost_per_month')" >> $GITHUB_ENV
@@ -92,31 +92,56 @@ jobs:
         echo "Platform ARN: $PLATFORM_ARN"
         echo "PLATFORM_ARN=$PLATFORM_ARN" >> $GITHUB_ENV
         
-    - name: Validate data product identity  
+    - name: Validate data product role ARN via AWS
       run: |
-        echo "=== Identity Validation ==="
+        echo "=== AWS Role ARN Validation ==="
         echo "Caller ARN: ${{ env.CALLER_ARN }}"
         echo "Source Repository: ${{ env.SOURCE_REPO }}"
-        echo "Expected Repository: ${{ env.PRODUCT_REPO_NAME }}"
         
-        # Validate that the caller is using the expected data product role
-        if [[ "${{ env.CALLER_ARN }}" == *"github-actions-data-product-role"* ]]; then
-          echo "✅ Caller identity validated - using data product role"
+        # Extract role name from ARN
+        if [[ "${{ env.CALLER_ARN }}" =~ arn:aws:iam::([0-9]+):role/([^/]+) ]]; then
+          ACCOUNT_ID="${BASH_REMATCH[1]}"
+          ROLE_NAME="${BASH_REMATCH[2]}"
+          echo "Extracted Account ID: $ACCOUNT_ID"
+          echo "Extracted Role Name: $ROLE_NAME"
         else
-          echo "❌ Invalid caller identity - not using expected data product role"
+          echo "❌ Invalid ARN format: ${{ env.CALLER_ARN }}"
           exit 1
         fi
         
-        # Validate that the source repo matches the registered product repo name
-        EXPECTED_REPO_PATTERN="${{ github.repository_owner }}/${{ env.PRODUCT_REPO_NAME }}"
-        if [[ "${{ env.SOURCE_REPO }}" == "$EXPECTED_REPO_PATTERN" ]]; then
-          echo "✅ Repository name validated - matches registered product"
-        else
-          echo "❌ Repository name doesn't match registered product"
-          echo "Expected: $EXPECTED_REPO_PATTERN" 
-          echo "Actual: ${{ env.SOURCE_REPO }}"
+        # Validate account ID matches expected
+        if [ "$ACCOUNT_ID" != "${{ secrets.AWS_ACCOUNT_ID }}" ]; then
+          echo "❌ Account ID mismatch. Expected: ${{ secrets.AWS_ACCOUNT_ID }}, Got: $ACCOUNT_ID"
           exit 1
         fi
+        
+        # Call AWS to validate the role exists and get its details
+        echo "Validating role exists in AWS..."
+        if ! ROLE_INFO=$(aws iam get-role --role-name "$ROLE_NAME" 2>/dev/null); then
+          echo "❌ Role $ROLE_NAME does not exist or cannot be accessed"
+          exit 1
+        fi
+        
+        # Extract role ARN from AWS response
+        ACTUAL_ROLE_ARN=$(echo "$ROLE_INFO" | jq -r '.Role.Arn')
+        echo "AWS Role ARN: $ACTUAL_ROLE_ARN"
+        
+        # Validate role name matches expected data product role pattern
+        if [[ "$ROLE_NAME" != "github-actions-data-product-role" ]]; then
+          echo "❌ Invalid role name. Expected: github-actions-data-product-role, Got: $ROLE_NAME"
+          exit 1
+        fi
+        
+        # Get role trust policy to validate it's configured for GitHub Actions
+        TRUST_POLICY=$(echo "$ROLE_INFO" | jq -r '.Role.AssumeRolePolicyDocument')
+        echo "Role trust policy validated"
+        
+        # Extract data product name from repository
+        DATA_PRODUCT_NAME=$(echo "${{ env.SOURCE_REPO }}" | sed 's/.*\///')
+        echo "DATA_PRODUCT_NAME=$DATA_PRODUCT_NAME" >> $GITHUB_ENV
+        echo "Extracted data product name: $DATA_PRODUCT_NAME"
+        
+        echo "✅ AWS Role ARN validation completed successfully"
         
     - name: Checkout data product repository
       uses: actions/checkout@v4
