@@ -130,7 +130,7 @@ jobs:
         repository: ${{ env.SOURCE_REPO }}
         ref: ${{ env.SOURCE_REF }}
         path: data-product-repo
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.PRIVATE_REPO_ACCESS_TOKEN }}
         
     - name: Validate data product Terraform structure
       run: |
