@@ -26,6 +26,12 @@ inputs:
     description: 'Path to Terraform configuration'
     required: false
     default: 'infrastructure'
+  aws-access-key-id:
+    description: 'AWS Access Key ID for role validation'
+    required: true
+  aws-secret-access-key:
+    description: 'AWS Secret Access Key for role validation'
+    required: true
   aws-account-id:
     description: 'AWS Account ID for validation'
     required: true
@@ -52,11 +58,11 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Configure AWS credentials (Platform Team Role)
+    - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: arn:aws:iam::${{ inputs.aws-account-id }}:role/github-actions-platform-team-role
-        role-session-name: CustomActionValidation
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
         aws-region: ${{ inputs.aws-region }}
     
     - name: Validate and extract from ARN
