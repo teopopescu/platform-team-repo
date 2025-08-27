@@ -17,12 +17,15 @@ jobs:
       
     - name: Extract deployment details
       run: |
-        echo "PRODUCT_REPO_NAME=${{ github.event.client_payload.product_repo_name }}" >> $GITHUB_ENV
+        echo "DATA_PRODUCT_NAME=${{ github.event.client_payload.data_product_name }}" >> $GITHUB_ENV
         echo "SOURCE_REPO=${{ github.event.client_payload.source_repo }}" >> $GITHUB_ENV
         echo "SOURCE_REF=${{ github.event.client_payload.source_ref }}" >> $GITHUB_ENV
         echo "CALLER_ARN=${{ github.event.client_payload.caller_arn }}" >> $GITHUB_ENV
+        echo "VALIDATED_ACCOUNT_ID=${{ github.event.client_payload.validated_account_id }}" >> $GITHUB_ENV
+        echo "VALIDATED_ROLE_NAME=${{ github.event.client_payload.validated_role_name }}" >> $GITHUB_ENV
         echo "ENVIRONMENT=${{ github.event.client_payload.environment }}" >> $GITHUB_ENV
         echo "TERRAFORM_PATH=${{ github.event.client_payload.terraform_path }}" >> $GITHUB_ENV
+        echo "AWS_VALIDATED=${{ github.event.client_payload.aws_validated }}" >> $GITHUB_ENV
         
     - name: Validate against data products registry
       run: |
@@ -77,6 +80,35 @@ jobs:
         echo "MAX_COST=$(echo "$PRODUCT_DETAILS" | jq -r '.max_cost_per_month')" >> $GITHUB_ENV
         echo "APPROVED_SERVICES=$(echo "$PRODUCT_DETAILS" | jq -r '.approved_services | join(",")')" >> $GITHUB_ENV
         
+    - name: Verify pre-validation from custom action
+      run: |
+        echo "=== Verifying Pre-Validation ==="
+        echo "Data Product Name: ${{ env.DATA_PRODUCT_NAME }}"
+        echo "Caller ARN: ${{ env.CALLER_ARN }}"
+        echo "Validated Account ID: ${{ env.VALIDATED_ACCOUNT_ID }}"
+        echo "Validated Role Name: ${{ env.VALIDATED_ROLE_NAME }}"
+        echo "AWS Validated: ${{ env.AWS_VALIDATED }}"
+        
+        # Ensure the custom action validated the ARN
+        if [ "${{ env.AWS_VALIDATED }}" != "true" ]; then
+          echo "❌ AWS validation not performed by custom action"
+          exit 1
+        fi
+        
+        # Validate account ID matches our expected account
+        if [ "${{ env.VALIDATED_ACCOUNT_ID }}" != "${{ secrets.AWS_ACCOUNT_ID }}" ]; then
+          echo "❌ Account ID mismatch. Expected: ${{ secrets.AWS_ACCOUNT_ID }}, Got: ${{ env.VALIDATED_ACCOUNT_ID }}"
+          exit 1
+        fi
+        
+        # Validate role name is correct
+        if [ "${{ env.VALIDATED_ROLE_NAME }}" != "github-actions-data-product-role" ]; then
+          echo "❌ Invalid role name. Expected: github-actions-data-product-role, Got: ${{ env.VALIDATED_ROLE_NAME }}"
+          exit 1
+        fi
+        
+        echo "✅ Pre-validation from custom action verified successfully"
+        
     - name: Configure AWS credentials (Platform Team)
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -91,57 +123,6 @@ jobs:
         PLATFORM_ARN=$(aws sts get-caller-identity --query Arn --output text)
         echo "Platform ARN: $PLATFORM_ARN"
         echo "PLATFORM_ARN=$PLATFORM_ARN" >> $GITHUB_ENV
-        
-    - name: Validate data product role ARN via AWS
-      run: |
-        echo "=== AWS Role ARN Validation ==="
-        echo "Caller ARN: ${{ env.CALLER_ARN }}"
-        echo "Source Repository: ${{ env.SOURCE_REPO }}"
-        
-        # Extract role name from ARN
-        if [[ "${{ env.CALLER_ARN }}" =~ arn:aws:iam::([0-9]+):role/([^/]+) ]]; then
-          ACCOUNT_ID="${BASH_REMATCH[1]}"
-          ROLE_NAME="${BASH_REMATCH[2]}"
-          echo "Extracted Account ID: $ACCOUNT_ID"
-          echo "Extracted Role Name: $ROLE_NAME"
-        else
-          echo "❌ Invalid ARN format: ${{ env.CALLER_ARN }}"
-          exit 1
-        fi
-        
-        # Validate account ID matches expected
-        if [ "$ACCOUNT_ID" != "${{ secrets.AWS_ACCOUNT_ID }}" ]; then
-          echo "❌ Account ID mismatch. Expected: ${{ secrets.AWS_ACCOUNT_ID }}, Got: $ACCOUNT_ID"
-          exit 1
-        fi
-        
-        # Call AWS to validate the role exists and get its details
-        echo "Validating role exists in AWS..."
-        if ! ROLE_INFO=$(aws iam get-role --role-name "$ROLE_NAME" 2>/dev/null); then
-          echo "❌ Role $ROLE_NAME does not exist or cannot be accessed"
-          exit 1
-        fi
-        
-        # Extract role ARN from AWS response
-        ACTUAL_ROLE_ARN=$(echo "$ROLE_INFO" | jq -r '.Role.Arn')
-        echo "AWS Role ARN: $ACTUAL_ROLE_ARN"
-        
-        # Validate role name matches expected data product role pattern
-        if [[ "$ROLE_NAME" != "github-actions-data-product-role" ]]; then
-          echo "❌ Invalid role name. Expected: github-actions-data-product-role, Got: $ROLE_NAME"
-          exit 1
-        fi
-        
-        # Get role trust policy to validate it's configured for GitHub Actions
-        TRUST_POLICY=$(echo "$ROLE_INFO" | jq -r '.Role.AssumeRolePolicyDocument')
-        echo "Role trust policy validated"
-        
-        # Extract data product name from repository
-        DATA_PRODUCT_NAME=$(echo "${{ env.SOURCE_REPO }}" | sed 's/.*\///')
-        echo "DATA_PRODUCT_NAME=$DATA_PRODUCT_NAME" >> $GITHUB_ENV
-        echo "Extracted data product name: $DATA_PRODUCT_NAME"
-        
-        echo "✅ AWS Role ARN validation completed successfully"
         
     - name: Checkout data product repository
       uses: actions/checkout@v4

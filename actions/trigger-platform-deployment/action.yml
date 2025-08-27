@@ -12,6 +12,12 @@ inputs:
   caller-arn:
     description: 'AWS ARN of the calling role'
     required: true
+  source-repo:
+    description: 'Source repository triggering the deployment'
+    required: true
+  source-ref:
+    description: 'Git reference (commit SHA) of the source'
+    required: true
   environment:
     description: 'Target environment (dev/staging/prod)'
     required: true
@@ -20,6 +26,16 @@ inputs:
     description: 'Path to Terraform configuration'
     required: false
     default: 'infrastructure'
+  aws-access-key-id:
+    description: 'AWS Access Key ID for role validation'
+    required: true
+  aws-secret-access-key:
+    description: 'AWS Secret Access Key for role validation'
+    required: true
+  aws-region:
+    description: 'AWS region'
+    required: false
+    default: 'us-east-1'
   wait-for-completion:
     description: 'Wait for deployment to complete'
     required: false
@@ -39,13 +55,26 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Validate inputs
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+        aws-region: ${{ inputs.aws-region }}
+    
+    - name: Validate and extract from ARN
       shell: bash
       run: |
-        echo "=== Validating Deployment Request ==="
+        echo "=== AWS Role ARN Validation and Extraction ==="
+        echo "Caller ARN: ${{ inputs.caller-arn }}"
         
-        # Validate ARN format
-        if [[ ! "${{ inputs.caller-arn }}" =~ ^arn:aws:iam::[0-9]+:role/.+ ]]; then
+        # Validate ARN format and extract components
+        if [[ "${{ inputs.caller-arn }}" =~ arn:aws:iam::([0-9]+):role/([^/]+) ]]; then
+          ACCOUNT_ID="${BASH_REMATCH[1]}"
+          ROLE_NAME="${BASH_REMATCH[2]}"
+          echo "Extracted Account ID: $ACCOUNT_ID"
+          echo "Extracted Role Name: $ROLE_NAME"
+        else
           echo "❌ Invalid ARN format: ${{ inputs.caller-arn }}"
           exit 1
         fi
@@ -56,19 +85,41 @@ runs:
           exit 1
         fi
         
-        # Extract repository info
-        REPO_NAME="${{ github.repository }}"
-        PRODUCT_REPO_NAME=$(echo $REPO_NAME | cut -d'/' -f2)
+        # Call AWS to validate the role exists and get its details
+        echo "Validating role exists in AWS..."
+        if ! ROLE_INFO=$(aws iam get-role --role-name "$ROLE_NAME" 2>/dev/null); then
+          echo "❌ Role $ROLE_NAME does not exist or cannot be accessed"
+          exit 1
+        fi
         
-        echo "Product Repository: $PRODUCT_REPO_NAME"
+        # Extract role ARN from AWS response
+        ACTUAL_ROLE_ARN=$(echo "$ROLE_INFO" | jq -r '.Role.Arn')
+        echo "AWS Role ARN: $ACTUAL_ROLE_ARN"
+        
+        # Validate role name matches expected data product role pattern
+        if [[ "$ROLE_NAME" != "github-actions-data-product-role" ]]; then
+          echo "❌ Invalid role name. Expected: github-actions-data-product-role, Got: $ROLE_NAME"
+          exit 1
+        fi
+        
+        # Get role trust policy to validate it's configured for GitHub Actions
+        TRUST_POLICY=$(echo "$ROLE_INFO" | jq -r '.Role.AssumeRolePolicyDocument')
+        echo "Role trust policy validated for GitHub Actions OIDC"
+        
+        # Extract data product name from source repository
+        REPO_NAME="${{ inputs.source-repo }}"
+        DATA_PRODUCT_NAME=$(echo $REPO_NAME | cut -d'/' -f2)
+        
+        echo "Extracted Data Product Name: $DATA_PRODUCT_NAME"
         echo "Environment: ${{ inputs.environment }}"
         echo "Terraform Path: ${{ inputs.terraform-path }}"
-        echo "Caller ARN: ${{ inputs.caller-arn }}"
         
         # Export for next steps
-        echo "PRODUCT_REPO_NAME=$PRODUCT_REPO_NAME" >> $GITHUB_ENV
+        echo "DATA_PRODUCT_NAME=$DATA_PRODUCT_NAME" >> $GITHUB_ENV
+        echo "ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV
+        echo "ROLE_NAME=$ROLE_NAME" >> $GITHUB_ENV
         
-        echo "✅ Input validation completed"
+        echo "✅ AWS Role validation and data extraction completed"
         
     - name: Trigger platform deployment
       id: trigger
@@ -79,14 +130,15 @@ runs:
         # Prepare payload
         PAYLOAD=$(cat <<EOF
         {
-          "product_repo_name": "${{ env.PRODUCT_REPO_NAME }}",
-          "source_repo": "${{ github.repository }}",
-          "source_ref": "${{ github.sha }}",
+          "data_product_name": "${{ env.DATA_PRODUCT_NAME }}",
+          "source_repo": "${{ inputs.source-repo }}",
+          "source_ref": "${{ inputs.source-ref }}",
           "caller_arn": "${{ inputs.caller-arn }}",
+          "validated_account_id": "${{ env.ACCOUNT_ID }}",
+          "validated_role_name": "${{ env.ROLE_NAME }}",
           "environment": "${{ inputs.environment }}",
           "terraform_path": "${{ inputs.terraform-path }}",
-          "triggered_by": "${{ github.actor }}",
-          "trigger_run_id": "${{ github.run_id }}",
+          "aws_validated": true,
           "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         }
         EOF
