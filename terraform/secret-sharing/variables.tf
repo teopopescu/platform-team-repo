@@ -31,3 +31,10 @@ variable "accepted_partner_ids" {
     public_key = string
   }))
 }
+
+variable "region" {
+  description = "AWS region"
+  type        = string
+  default     = "eu-west-1"
+}
+  
