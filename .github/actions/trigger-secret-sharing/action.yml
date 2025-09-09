@@ -32,12 +32,6 @@ runs:
 
     - name: Set up Terraform
       shell: bash
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: 1.7.0
-
-    - name: Terraform Init
-      shell: bash
       working-directory: terraform/secret-sharing
       run: terraform init
 
