@@ -48,7 +48,7 @@ runs:
 
     - name: Build & Push Docker Image
       shell: bash
-      working-directory: ${{ github.workspace }}/platform-repo/lambda/secret_sharing_service
+      working-directory: platform-repo/lambda/secret-sharing-service
       run: |
         IMAGE_URI="957129869060.dkr.ecr.eu-west-1.amazonaws.com/ecr-mercury-dev-euwe1-shared-service_secret-sharing:latest"
         docker build --provenance=false --platform linux/arm64 -t $IMAGE_URI .
