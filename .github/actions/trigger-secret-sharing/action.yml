@@ -21,7 +21,8 @@ inputs:
 
 outputs:
   api_gateway_url:
-    description: "The URL of the provisioned API Gateway."
+    description: "The URL of the provisioned API Gateway"
+    value: ${{ steps.get_url.outputs.api_gateway_url }}
 
 runs:
   using: "composite"
@@ -30,12 +31,15 @@ runs:
       uses: actions/checkout@v4
 
     - name: Set up Terraform
-      shell: bash
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.7.0
+
+    - name: Terraform Init
       working-directory: terraform/secret-sharing
       run: terraform init
 
     - name: Terraform Apply
-      shell: bash
       working-directory: terraform/secret-sharing
       run: terraform apply -auto-approve \
         -var="product_name=${{ inputs.product_name }}" \
@@ -45,7 +49,6 @@ runs:
         -var="accepted_partner_ids=${{ inputs.accepted_partner_ids }}"
 
     - name: Get API Gateway URL
-      shell: bash
       id: get_url
       working-directory: terraform/secret-sharing
       run: |
