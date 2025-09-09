@@ -12,7 +12,7 @@ COPY --from=uv /uv /bin/uv
 RUN chmod +x /bin/uv
 
 # Copy Python dependencies descriptors
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml ./
 
 # Install dependencies via uv
 RUN /bin/uv pip install --no-cache-dir --target . .
