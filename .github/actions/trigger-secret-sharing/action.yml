@@ -33,7 +33,10 @@ runs:
         ref: test/secret_sharing
         path: platform-repo
 
-    - name: Set up Terraform
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Terraform Init
       shell: bash
       working-directory: platform-repo/terraform/secret-sharing
       run: terraform init
