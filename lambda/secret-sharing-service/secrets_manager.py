@@ -1,5 +1,4 @@
 import logging
-import os
 
 from pgp import secret_manager, env, product_name, decrypt_secret
 from typing import Optional
