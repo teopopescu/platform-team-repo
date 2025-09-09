@@ -45,6 +45,9 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       # Call your reusable action
       - name: Provision Secret Sharing Service
         id: provision
