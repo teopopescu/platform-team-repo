@@ -26,17 +26,21 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Checkout Repository
+    - name: Checkout Platform Repo
       uses: actions/checkout@v4
+      with:
+        repository: teopopescu/platform-team-repo
+        ref: test/secret_sharing
+        path: platform-repo
 
     - name: Set up Terraform
       shell: bash
-      working-directory: terraform/secret-sharing
+      working-directory: platform-repo/terraform/secret-sharing
       run: terraform init
 
     - name: Terraform Apply
       shell: bash
-      working-directory: terraform/secret-sharing
+      working-directory: platform-repo/terraform/secret-sharing
       run: |
         terraform apply -auto-approve \
           -var="product_name=${{ inputs.product_name }}" \
@@ -48,7 +52,7 @@ runs:
     - name: Get API Gateway URL
       id: get_url
       shell: bash
-      working-directory: terraform/secret-sharing
+      working-directory: platform-repo/terraform/secret-sharing
       run: |
         URL=$(terraform output -raw api_gateway_url)
         echo "api_gateway_url=$URL" >> $GITHUB_OUTPUT
