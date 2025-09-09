@@ -8,13 +8,12 @@ WORKDIR ${LAMBDA_TASK_ROOT}
 
 # Copy uv binary from stage 0
 COPY --from=uv /uv /bin/uv
-RUN chmod +x /bin/uv
 
 # Copy Python dependency descriptors
-COPY pyproject.toml ./
+COPY pyproject.toml uv.lock ./
 
 # Install dependencies into Lambda folder
-RUN /bin/uv pip install --no-cache-dir --target . .
+RUN uv pip install --no-cache-dir --target . .
 
 # Copy Lambda function code
 COPY *.py .
