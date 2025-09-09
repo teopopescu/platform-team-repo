@@ -1,0 +1,55 @@
+name: "Provision Secret Sharing Service"
+description: "Reusable action to provision a Secret Sharing Service for a data product using Terraform."
+
+inputs:
+  product_name:
+    description: "The name of the data product."
+    required: true
+  env:
+    description: "Environment (dev, stage, prod)."
+    required: true
+  contact_email:
+    description: "Contact email for the data product team."
+    required: true
+  contact_name:
+    description: "Contact name for the data product team."
+    required: true
+  accepted_partner_ids:
+    description: "JSON array of accepted partner IDs."
+    required: false
+    default: "[]"
+
+outputs:
+  api_gateway_url:
+    description: "The URL of the provisioned API Gateway."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout Platform Repo
+      uses: actions/checkout@v4
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.7.0
+
+    - name: Terraform Init
+      working-directory: terraform/secret-sharing
+      run: terraform init
+
+    - name: Terraform Apply
+      working-directory: terraform/secret-sharing
+      run: terraform apply -auto-approve \
+        -var="product_name=${{ inputs.product_name }}" \
+        -var="env=${{ inputs.env }}" \
+        -var="contact_email=${{ inputs.contact_email }}" \
+        -var="contact_name=${{ inputs.contact_name }}" \
+        -var="accepted_partner_ids=${{ inputs.accepted_partner_ids }}"
+
+    - name: Get API Gateway URL
+      id: get_url
+      working-directory: terraform/secret-sharing
+      run: |
+        URL=$(terraform output -raw api_gateway_url)
+        echo "api_gateway_url=$URL" >> $GITHUB_OUTPUT
