@@ -2,70 +2,47 @@ name: Provision Secret Sharing Service
 on:
   push:
     branches:
-        test/secret_sharing
+      - test/secret_sharing
 
 jobs:
   provision-secret-sharing:
-    runs-on: ubuntu-latest
-    env:
-      platform-repo: teopopescu/platform-team-repo
-      github-token: ${{ secrets.PLATFORM_REPO_TOKEN }}
-    #   caller-arn: ${{ env.CALLER_ARN }}
-      source-repo: ${{ github.repository }}
-      source-ref: ${{ github.sha }}
-      environment: "dev"
-    #   terraform-path: ${{ env.TERRAFORM_PATH }}
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      aws-account-id: ${{ secrets.AWS_ACCOUNT_ID }}
-      aws-region: us-east-1
-      wait-for-completion: 'true'
+    uses: ./.github/workflows/provision-secret-sharing.yml
+    with:
       product_name: "data_product_123"
-      env: ${{ github.event.inputs.env }}
+      env: "dev"
       contact_email: "team@example.com"
       contact_name: "Team Name"
       accepted_partner_ids: >-
-            [
-              {
-                "id": "partner1",
-                "fqdn": "partner1.example.com",
-                "name": "Partner One",
-                "public_key": "abc"
-              },
-              {
-                "id": "partner99",
-                "fqdn": "partner99@partnersrock.com",
-                "name": "partner99",
-                "public_key": "def"
-              }
-            ]
+        [
+          {
+            "id": "partner1",
+            "fqdn": "partner1.example.com",
+            "name": "Partner One",
+            "public_key": "abc"
+          },
+          {
+            "id": "partner99",
+            "fqdn": "partner99@partnersrock.com",
+            "name": "partner99",
+            "public_key": "def"
+          }
+        ]
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      PLATFORM_REPO_TOKEN: ${{ secrets.PLATFORM_REPO_TOKEN }}
 
+  use-api:
+    runs-on: ubuntu-latest
+    needs: provision-secret-sharing
     steps:
-      # Checkout the repository
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # Call your reusable action
-      - name: Provision Secret Sharing Service
-        id: provision
-        uses: ./.github/actions/trigger-secret-sharing
-        with:
-          product_name: "my-data-product"           # Replace with your product
-          env: "dev"                                 # dev, stage, or prod
-          contact_email: "team@example.com"
-          contact_name: "Alice"
-          accepted_partner_ids: '["partner1","partner2"]'
-
-      # Output the API Gateway URL
       - name: Display API Gateway URL
         run: |
-            echo "Provisioned API Gateway URL: ${{ steps.provision.outputs.api_gateway_url }}"
-            
+            echo "Provisioned API Gateway URL: ${{ needs.provision-secret-sharing.outputs.api_gateway_url }}"
+
       - name: Write API Gateway URL to File
-        run: echo "${{ steps.provision.outputs.api_gateway_url }}" > api_gateway_url.txt
+        run: echo "${{ needs.provision-secret-sharing.outputs.api_gateway_url }}" > api_gateway_url.txt
 
       - name: Save API Gateway URL Artifact
         uses: actions/upload-artifact@v4
