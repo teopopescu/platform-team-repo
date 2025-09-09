@@ -1,5 +1,5 @@
 # Stage 0: Use uv for dependency installation (force x86_64)
-FROM --platform=linux/amd64 ghcr.io/astral-sh/uv:0.8.11 AS uv
+FROM ghcr.io/astral-sh/uv:0.8.11 AS uv
 
 # Stage 1: Lambda base image
 FROM public.ecr.aws/lambda/python:3.12
