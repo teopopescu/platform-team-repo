@@ -26,9 +26,8 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Checkout Platform Repo
-      run: git clone ${{ github.repository_url }} .
-      shell: bash
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
     - name: Set up Terraform
       shell: bash
