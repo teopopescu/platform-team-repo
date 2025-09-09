@@ -25,6 +25,7 @@ outputs:
 
 runs:
   using: "composite"
+  shell: bash
   steps:
     - name: Checkout Platform Repo
       uses: actions/checkout@v4
