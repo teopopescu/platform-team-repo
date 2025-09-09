@@ -51,7 +51,7 @@ runs:
       run: |
         IMAGE_URI="957129869060.dkr.ecr.eu-west-1.amazonaws.com/ecr-mercury-dev-euwe1-shared-service_secret-sharing:latest"
         echo "Building and pushing image: $IMAGE_URI"
-        docker build platform-repo/lambda/secret-sharing-service --provenance=false --platform linux/arm64 -t $IMAGE_URI .
+        docker build --provenance=false --platform linux/arm64 -t $IMAGE_URI platform-repo/lambda/secret_sharing_service
         docker push $IMAGE_URI
 
     - name: Terraform Init
