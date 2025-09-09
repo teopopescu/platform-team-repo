@@ -6,6 +6,7 @@ variable "product_name" {
 variable "env" {
   description = "The environment for which the secret is being shared, e.g., dev, tst, uat, stg, prd."
   type        = string
+  default = "dev"
 }
 
 variable "allowed_cidrs" {
