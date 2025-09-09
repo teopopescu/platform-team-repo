@@ -38,7 +38,7 @@ runs:
 
     - name: Terraform Init
       shell: bash
-      working-directory: platform-repo/terraform/secret-sharing
+      working-directory: platform-repo/terraform/secret-sharing-infra
       run: terraform init
 
     - name: Terraform Apply
