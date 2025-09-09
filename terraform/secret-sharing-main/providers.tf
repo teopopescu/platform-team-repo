@@ -19,7 +19,7 @@ provider "aws" {
 terraform {
   backend "s3" {
     bucket = "tf-state-rm-awstest"
-    key    = "va-test-secret-sharing.tfstate"
+    key    = "va-test-secret-sharing-main.tfstate"
     use_lockfile = true
   }
 }

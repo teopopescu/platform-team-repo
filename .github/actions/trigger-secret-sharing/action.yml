@@ -43,7 +43,25 @@ runs:
 
     - name: Terraform Apply
       shell: bash
-      working-directory: platform-repo/terraform/secret-sharing
+      working-directory: platform-repo/terraform/secret-sharing-infra
+      run: terraform apply -auto-approve
+
+    - name: Build & Push Docker Image
+      shell: bash
+      run: |
+        IMAGE_URI="957129869060.dkr.ecr.eu-west-1.amazonaws.com/ecr-mercury-dev-euwe1-shared-service_secret-sharing:latest"
+        echo "Building and pushing image: $IMAGE_URI"
+        docker build --provenance=false --platform linux/arm64 -t $IMAGE_URI .
+        docker push $IMAGE_URI
+
+    - name: Terraform Init
+      shell: bash
+      working-directory: platform-repo/terraform/secret-sharing-main
+      run: terraform init
+
+    - name: Terraform Apply
+      shell: bash
+      working-directory: platform-repo/terraform/secret-sharing-main
       run: |
         terraform apply -auto-approve \
           -var="product_name=${{ inputs.product_name }}" \
