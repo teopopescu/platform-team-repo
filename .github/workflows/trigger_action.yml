@@ -51,7 +51,7 @@ jobs:
       # Call your reusable action
       - name: Provision Secret Sharing Service
         id: provision
-        uses: ./.github/actions/provision-secret-sharing
+        uses: ./.github/actions/trigger-secret-sharing
         with:
           product_name: "my-data-product"           # Replace with your product
           env: "dev"                                 # dev, stage, or prod
