@@ -10,10 +10,10 @@ WORKDIR ${LAMBDA_TASK_ROOT}
 # Copy uv from builder stage
 COPY --from=builder /usr/local/bin/uv /bin/uv
 
-# Copy Python dependency descriptors
-COPY pyproject.toml uv.lock ./
+# Copy Python dependency descriptor
+COPY pyproject.toml ./
 
-# Install dependencies into Lambda folder
+# Generate lock file and install dependencies
 RUN uv pip install --no-cache-dir --target . .
 
 # Copy Lambda function code
