@@ -14,7 +14,7 @@ def upsert_partner_public_key(partner_id: str, public_key: str) -> None:
             Name=partner_public_key_secret_name,
             SecretString=public_key,
             Description=f"PGP Public Key from partner: {partner_id} for product: {product_name}",
-            Tags={"env": env, "product_name": product_name, "partner_id": partner_id},
+            Tags=[{"Key": "env", "Value": env}, {"Key": "product_name", "Value": product_name}, {"Key": "partner_id", "Value": partner_id}],
         )
     else:
         secret_manager.put_secret_value(
