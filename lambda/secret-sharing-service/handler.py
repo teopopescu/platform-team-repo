@@ -14,10 +14,16 @@ secret_manager = boto3.client('secretsmanager')
 from pgp import generate_pgp_key, get_public_key, encrypt_with_public_key
 from secrets_manager import upsert_partner_public_key, upsert_secret, get_secret
 
-tmp = os.getenv("ACCEPTED_PARTNER_IDS")
-if not tmp:
+partners = os.getenv("ACCEPTED_PARTNER_IDS")
+if not partners:
     raise ValueError("Environment variable 'ACCEPTED_PARTNER_IDS' is not set")
-ACCEPTED_PARTNER_IDS = json.loads(tmp)
+ACCEPTED_PARTNER_IDS = json.loads(partners)
+for partner in ACCEPTED_PARTNER_IDS:
+    pubkey = partner["public_key"].replace("\\n", "\n")
+    # Now use pgpy
+    from pgpy import PGPKey
+    key, _ = PGPKey.from_blob(pubkey)
+    print(f"Loaded key for {partner['id']}")
 
 
 def reply_with_json(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
