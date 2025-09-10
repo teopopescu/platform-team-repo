@@ -64,7 +64,7 @@ resource "aws_lambda_function" "secret_sharing" {
 
   timeout = 300
 
-  architectures = ["x86_65"]
+  architectures = ["arm64"]
 }
 
 
