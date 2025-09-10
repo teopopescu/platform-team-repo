@@ -86,10 +86,11 @@ runs:
         REPO_URL: 957129869060.dkr.ecr.eu-west-1.amazonaws.com/ecr-mercury-dev-euwe1-shared-service_secret-sharing
         VERSION: 0.1.0
       run: |
+        echo "Building Docker image with version: $VERSION"
         FULL_IMAGE_URI="$REPO_URL:$VERSION"
         docker build --provenance=false --platform linux/amd64 -t $FULL_IMAGE_URI .
         docker push $FULL_IMAGE_URI
-        echo "TF_VAR_IMAGE_URI=$FULL_IMAGE_URI" >> $GITHUB_ENV
+        echo "TF_VAR_IMAGE_URI=$FULL_IMAGE_URI" >> $GITHUB_OUTPUT
 
     - name: Terraform Init
       shell: bash
@@ -100,8 +101,9 @@ runs:
       shell: bash
       working-directory: platform-repo/terraform/secret-sharing-main
       env:
-        TF_VAR_IMAGE_URI: ${{ env.TF_VAR_IMAGE_URI }}
+        TF_VAR_IMAGE_URI: ${{ steps.docker_build.outputs.TF_VAR_IMAGE_URI }}
       run: |
+        echo "Using image URI: $TF_VAR_IMAGE_URI"
         terraform apply -auto-approve \
           -var="product_name=${{ inputs.product_name }}" \
           -var="env=${{ inputs.env }}" \
