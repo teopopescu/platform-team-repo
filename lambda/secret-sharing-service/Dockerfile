@@ -1,13 +1,17 @@
-# Stage 0: Use uv for dependency installation (force x86_64)
-FROM ghcr.io/astral-sh/uv:0.8.11 AS uv
+# Stage 1: Lambda base image - using the same base for both stages ensures architecture compatibility
+FROM public.ecr.aws/lambda/python:3.12 as base
 
-# Stage 1: Lambda base image
-FROM public.ecr.aws/lambda/python:3.12
+# Stage 2: Install uv in a builder stage
+FROM base as builder
+RUN pip install --no-cache-dir uv==0.8.11
+
+# Stage 3: Final image
+FROM base
 
 WORKDIR ${LAMBDA_TASK_ROOT}
 
-# Copy uv binary from stage 0
-COPY --from=uv /uv /bin/uv
+# Copy uv from builder stage
+COPY --from=builder /var/lang/bin/uv /bin/uv
 
 # Copy Python dependency descriptors
 COPY pyproject.toml uv.lock ./
