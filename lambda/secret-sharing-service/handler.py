@@ -43,6 +43,15 @@ def handle_get_pgp_key() -> Dict[str, Any]:
 
 
 def import_partner(event: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Import a partner's public key.
+
+    Args:
+        event: The event object containing the request context and body.
+    
+    Returns:
+        A dictionary containing the status code and body.
+    """
     method = event.get("requestContext", {}).get("http", {}).get("method")
     if method != "POST":
         return reply_with_json(405, {"message": "Only POST is allowed"})

@@ -49,8 +49,7 @@ resource "aws_lambda_function" "secret_sharing" {
   role          = aws_iam_role.secret_sharing.arn
 
   package_type = "Image"
-  # image_uri = "${aws_ecr_repository.secret_sharing.repository_url}:latest"
-  image_uri = "957129869060.dkr.ecr.eu-west-1.amazonaws.com/ecr-mercury-${var.env}-euwe1-shared-service_secret-sharing:latest"
+  image_uri    = var.image_uri
 
   environment {
     variables = {

@@ -81,10 +81,15 @@ runs:
     - name: Build & Push Docker Image
       shell: bash
       working-directory: platform-repo/lambda/secret-sharing-service
+      id: docker_build
+      env:
+        REPO_URL: 957129869060.dkr.ecr.eu-west-1.amazonaws.com/ecr-mercury-dev-euwe1-shared-service_secret-sharing
+        VERSION: 0.1.0
       run: |
-        IMAGE_URI="957129869060.dkr.ecr.eu-west-1.amazonaws.com/ecr-mercury-dev-euwe1-shared-service_secret-sharing:latest"
-        docker build --provenance=false --platform linux/amd64 -t $IMAGE_URI .
-        docker push $IMAGE_URI
+        FULL_IMAGE_URI="$REPO_URL:$VERSION"
+        docker build --provenance=false --platform linux/amd64 -t $FULL_IMAGE_URI .
+        docker push $FULL_IMAGE_URI
+        echo "TF_VAR_IMAGE_URI=$FULL_IMAGE_URI" >> $GITHUB_ENV
 
     - name: Terraform Init
       shell: bash
@@ -94,6 +99,8 @@ runs:
     - name: Terraform Apply
       shell: bash
       working-directory: platform-repo/terraform/secret-sharing-main
+      env:
+        TF_VAR_IMAGE_URI: ${{ env.TF_VAR_IMAGE_URI }}
       run: |
         terraform apply -auto-approve \
           -var="product_name=${{ inputs.product_name }}" \

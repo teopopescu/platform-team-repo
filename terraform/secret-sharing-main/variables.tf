@@ -38,4 +38,9 @@ variable "region" {
   type        = string
   default     = "eu-west-1"
 }
-  
+
+variable "image_uri" {
+  description = "The full URI of the Docker image to deploy"
+  type        = string
+  default     = ""
+}

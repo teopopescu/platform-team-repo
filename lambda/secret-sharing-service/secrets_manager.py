@@ -23,9 +23,25 @@ def upsert_partner_public_key(partner_id: str, public_key: str) -> None:
         )
 
 def upsert_secret(partner_id: str, secret_name: str, encrypted_secret: str) -> bool:
+    """
+    Upsert a secret into AWS Secrets Manager.
+
+    Args:
+        partner_id: The ID of the partner.
+        secret_name: The name of the secret.
+        encrypted_secret: The encrypted secret.
+    
+    Returns:
+        A boolean indicating whether the secret was successfully upserted.
+    """
     secret_name = f"merc-{env}-{product_name}-module-secretsharing-partner-{partner_id}-secret-{secret_name}"
 
     # decrypt the secret
+    
+    # TODO: Testing code, remove
+    print("\n\n ENCRYPTED SECRET")
+    print(encrypted_secret)
+    
     decrypted_secret = decrypt_secret(encrypted_secret)
     if not decrypted_secret:
         logging.error(f"Failed to decrypt secret for partner: {partner_id}")
