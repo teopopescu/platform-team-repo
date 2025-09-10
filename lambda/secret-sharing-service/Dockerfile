@@ -16,4 +16,4 @@ RUN uv pip install --no-cache-dir --target . .
 COPY *.py .
 
 # Set the CMD to your handler (must be a string, not a list)
-CMD handler.handler
+CMD ["handler.handler"]
