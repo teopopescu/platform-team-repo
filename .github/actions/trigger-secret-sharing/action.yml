@@ -72,7 +72,7 @@ runs:
       id: docker_build
       env:
         REPO_URL: 957129869060.dkr.ecr.eu-west-1.amazonaws.com/ecr-mercury-dev-euwe1-shared-service_secret-sharing
-        VERSION: 0.1.2
+        VERSION: 0.1.3
       run: |
         echo "Building Docker image with version: $VERSION"
         FULL_IMAGE_URI="$REPO_URL:$VERSION"
