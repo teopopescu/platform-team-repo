@@ -37,10 +37,10 @@ if not contact_name:
     raise ValueError("Environment variable 'CONTACT_NAME' is not set")
 
 public_key_secret_name = (
-    f"merc-{env}-{product_name}-module-secretsharing-public-key"
+    f"M2_PLATFORM_PUBLIC_KEY"
 )
 private_key_secret_name = (
-    f"merc-{env}-{product_name}-module-secretsharing-private-key"
+    f"M2_PLATFORM_PRIVATE_KEY"
 )
 
 def decrypt_secret(encrypted_secret: str) -> Optional[str]:
