@@ -18,6 +18,15 @@ inputs:
     description: "JSON array of accepted partner IDs."
     required: false
     default: "[]"
+  AWS_ACCESS_KEY_ID:
+    description: "AWS access key ID for ECR access"
+    required: true
+  AWS_SECRET_ACCESS_KEY:
+    description: "AWS secret access key for ECR access"
+    required: true
+  AWS_ACCOUNT_ID:
+    description: "AWS account ID"
+    required: true
 
 outputs:
   api_gateway_url:
@@ -45,6 +54,17 @@ runs:
       shell: bash
       working-directory: platform-repo/terraform/secret-sharing-infra
       run: terraform apply -auto-approve
+
+    - name: Configure AWS credentials for ECR
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ inputs.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ inputs.AWS_SECRET_ACCESS_KEY }}
+        aws-region: eu-west-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
 
     - name: Build & Push Docker Image
       shell: bash
