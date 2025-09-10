@@ -18,12 +18,6 @@ partners = os.getenv("ACCEPTED_PARTNER_IDS")
 if not partners:
     raise ValueError("Environment variable 'ACCEPTED_PARTNER_IDS' is not set")
 ACCEPTED_PARTNER_IDS = json.loads(partners)
-for partner in ACCEPTED_PARTNER_IDS:
-    pubkey = partner["public_key"].replace("\\n", "\n")
-    # Now use pgpy
-    from pgpy import PGPKey
-    key, _ = PGPKey.from_blob(pubkey)
-    print(f"Loaded key for {partner['id']}")
 
 
 def reply_with_json(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -129,7 +123,10 @@ def export_secret(event: Dict[str, Any]) -> Dict[str, Any]:
         return reply_with_json(400, {
             "message": "Missing required query parameters: partner_id and secret_name"
         })
-
+    for partner in ACCEPTED_PARTNER_IDS:
+        pubkey = partner["public_key"].replace("\\n", "\n")
+        ACCEPTED_PARTNER_IDS[partner["id"]]["public_key"] = pubkey
+        print(f"Loaded key for {partner['id']}")
     # Validate partner and get their public key
     partner = next((p for p in ACCEPTED_PARTNER_IDS if p["id"] == partner_id), None)
     if not partner:

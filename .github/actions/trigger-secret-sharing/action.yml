@@ -132,7 +132,7 @@ runs:
       if: ${{ inputs.action_type == 'import' }}
       shell: bash
       run: |
-        echo "Running import for partner: ${{ inputs.partner_id }}"
+        echo "Running IMPORT for partner: ${{ inputs.partner_id }}"
         curl -X POST ${{ env.API_GATEWAY_URL }}/secrets/import \
           -H "Content-Type: application/json" \
           -d '{
@@ -145,7 +145,7 @@ runs:
       if: ${{ inputs.action_type == 'export' }}
       shell: bash
       run: |
-        echo "Running import for partner: ${{ inputs.partner_id }}"
+        echo "Running EXPORT for partner: ${{ inputs.partner_id }}"
         curl -X GET ${{ env.API_GATEWAY_URL }}/secrets/export \
           -H "Content-Type: application/json" \
           -d '{
