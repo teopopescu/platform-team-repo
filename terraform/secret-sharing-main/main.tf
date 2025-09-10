@@ -49,7 +49,7 @@ resource "aws_lambda_function" "secret_sharing" {
   role          = aws_iam_role.secret_sharing.arn
 
   package_type = "Image"
-  image_uri    = var.image_uri
+  image_uri    = var.IMAGE_URI
 
   environment {
     variables = {
