@@ -14,7 +14,7 @@ COPY --from=builder /usr/local/bin/uv /bin/uv
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies into Lambda folder
-RUN uv pip install --no-cache-dir --target . .
+RUN pip install --no-cache-dir --target . .
 
 # Copy Lambda function code
 COPY *.py .
