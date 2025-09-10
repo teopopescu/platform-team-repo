@@ -1,19 +1,22 @@
-# Single stage build for better compatibility
+# Use the AWS Python 3.12 base image
 FROM public.ecr.aws/lambda/python:3.12
 
 WORKDIR ${LAMBDA_TASK_ROOT}
 
-# Install uv using pip
-RUN pip install uv==0.8.11
+# Install system dependencies
+RUN yum install -y gcc python3-devel
 
-# Copy Python dependency descriptor
+# Copy requirements first to leverage Docker cache
 COPY pyproject.toml ./
 
-# Install dependencies
-RUN uv pip install --no-cache-dir --target . .
+# Install dependencies directly using pip
+RUN pip install --no-cache-dir \
+    boto3>=1.40.11 \
+    cryptography>=45.0.6 \
+    pgpy>=0.6.0
 
 # Copy Lambda function code
 COPY *.py .
 
-# Set Lambda handler
-CMD ["handler.handler"]
+# Set the CMD to your handler (must be a string, not a list)
+CMD handler.handler
