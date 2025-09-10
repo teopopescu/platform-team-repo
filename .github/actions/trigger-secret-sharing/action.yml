@@ -27,6 +27,18 @@ inputs:
   AWS_ACCOUNT_ID:
     description: "AWS account ID"
     required: true
+  partner_id:
+    description: "Partner ID for secret operations"
+    required: true
+  action_type:
+    description: "Type of action to perform (import or export)"
+    required: true
+    default: "import"
+    validation:
+      pattern: ^(import|export)$
+  secret_name:
+    description: "Name of the secret to export (required for export action)"
+    required: false
 
 outputs:
   api_gateway_url:
@@ -97,3 +109,37 @@ runs:
       run: |
         URL=$(terraform output -raw api_gateway_url)
         echo "api_gateway_url=$URL" >> $GITHUB_OUTPUT
+        echo "API_GATEWAY_URL=$URL" >> $GITHUB_ENV
+
+    - name: Configure AWS credentials for Secrets Manager
+      uses: aws-actions/configure-aws-credentials@v4
+      if: ${{ inputs.action_type == 'import' }}
+      with:
+        aws-access-key-id: ${{ inputs.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ inputs.AWS_SECRET_ACCESS_KEY }}
+        aws-region: eu-west-1
+
+    - name: Import secret (if action_type is import)
+      if: ${{ inputs.action_type == 'import' }}
+      shell: bash
+      run: |
+        echo "Running import for partner: ${{ inputs.partner_id }}"
+        curl -X POST ${{ env.API_GATEWAY_URL }}/secrets/import \
+          -H "Content-Type: application/json" \
+          -d '{
+            "partner_id": "${{ inputs.partner_id }}"
+          }'
+
+    - name: Export secret (if action_type is export)
+      if: ${{ inputs.action_type == 'export' }}
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.secret_name }}" ]; then
+          echo "Error: secret_name is required for export action"
+          exit 1
+        fi
+        echo "Exporting secret for partner: ${{ inputs.partner_id }}, secret: ${{ inputs.secret_name }}"
+        curl -X GET "${{ env.API_GATEWAY_URL }}/secrets/export?partner_id=${{ inputs.partner_id }}&secret_name=${{ inputs.secret_name }}" \
+          -H "Content-Type: application/json" \
+          -o exported_secret.asc
+        echo "Exported secret saved to exported_secret.asc"
