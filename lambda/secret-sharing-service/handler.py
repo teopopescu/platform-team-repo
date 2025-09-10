@@ -12,7 +12,7 @@ import boto3
 secret_manager = boto3.client('secretsmanager')
 
 from pgp import generate_pgp_key, get_public_key, encrypt_with_public_key
-from secrets_manager import upsert_partner_public_key, upsert_secret, get_secret
+from secrets_manager import upsert_partner_public_key, upsert_secret, get_secret, get_partner_public_key
 
 partners = os.getenv("ACCEPTED_PARTNER_IDS")
 if not partners:
@@ -122,57 +122,39 @@ def export_secret(event: Dict[str, Any]) -> Dict[str, Any]:
     method = event.get("requestContext", {}).get("http", {}).get("method")
     if method != "GET":
         return reply_with_json(405, {"message": "Only GET is allowed"})
-
-    # Extract query parameters
-    query_params = json.loads(event.get("body") or "{}")
-    partner_id = query_params.get("partner_id")
-    secret_name = query_params.get("secret_name")
-
-    if not partner_id or not secret_name:
-        return reply_with_json(400, {
-            "message": "Missing required query parameters: partner_id and secret_name"
-        })
-    for partner in ACCEPTED_PARTNER_IDS:
-        pubkey = partner["public_key"].replace("\\n", "\n")
-        ACCEPTED_PARTNER_IDS[partner["id"]]["public_key"] = pubkey
-        print(f"Loaded key for {partner['id']}")
-    # Validate partner and get their public key
-    partner = next((p for p in ACCEPTED_PARTNER_IDS if p["id"] == partner_id), None)
-    if not partner:
-        return reply_with_json(403, {"message": "Unauthorized partner_id"})
-    
-    if not partner.get("public_key"):
-        return reply_with_json(403, {
-            "message": f"Unauthorized partner: No public key found for partner {partner_id}"
-        })
-
-    try:
-        # Get the secret from AWS Secrets Manager
-        secret_value = get_secret(partner_id, secret_name)
-        if not secret_value:
-            return reply_with_json(404, {"message": "Secret not found"})
-
-        # Encrypt the secret with partner's public key
-        encrypted_secret = encrypt_secret(secret_value, partner["public_key"])
         
-        return {
-            "statusCode": 200,
-            "headers": {"Content-Type": "application/pgp-encrypted"},
-            "body": encrypted_secret,
-            "isBase64Encoded": False,
-        }
-
-    except Exception as e:
-        logging.error(f"Error exporting secret: {str(e)}")
-        return reply_with_json(500, {"message": "Failed to export secret"})
-
-def encrypt_secret(secret: str, public_key: str) -> str:
-    """Encrypt a secret using a PGP public key."""
+    # Get query parameters
+    query_params = event.get("queryStringParameters", {}) or {}
+    required_params = {"partner_id", "secret_name"}
+    missing_params = required_params - set(query_params.keys())
+    
+    if missing_params:
+        return reply_with_json(400, {"message": f"Missing required parameters: {', '.join(missing_params)}"})
+    
+    partner_id = query_params["partner_id"]
+    secret_name = query_params["secret_name"]
+    
+    # Get the partner's public key
+    public_key = get_partner_public_key(partner_id)
+    if not public_key:
+        return reply_with_json(404, {"message": "Partner public key not found"})
+    
+    # Get the secret
+    secret = get_secret(partner_id, secret_name)
+    if not secret:
+        return reply_with_json(404, {"message": "Secret not found"})
+    
     try:
-        return encrypt_with_public_key(public_key, secret)
+        # Encrypt the secret with the partner's public key
+        encrypted_secret = encrypt_with_public_key(public_key, secret)
+        return reply_with_json(200, {
+            "encrypted_secret": encrypted_secret,
+            "partner_id": partner_id,
+            "secret_name": secret_name
+        })
     except Exception as e:
         logging.error(f"Error encrypting secret: {str(e)}")
-        raise
+        return reply_with_json(500, {"message": "Failed to encrypt secret"})
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     route = event.get("rawPath")  # HTTP API v2
@@ -182,9 +164,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if route == "/partner/import":
         return import_partner(event)
     
-    # if route == "/partners/export/mTLS":
-    #     return export_partner_mtls(event)
-        
     if route == "/secrets/export":
         return export_secret(event)
 

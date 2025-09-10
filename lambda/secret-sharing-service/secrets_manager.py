@@ -69,6 +69,25 @@ def upsert_secret(partner_id: str, secret_name: str, encrypted_secret: str) -> b
     return True
 
 
+def get_partner_public_key(partner_id: str) -> Optional[str]:
+    """
+    Get a partner's public key by partner_id.
+    
+    Args:
+        partner_id: The ID of the partner
+        
+    Returns:
+        The partner's public key or None if not found
+    """
+    secret_name = f"merc-{env}-{product_name}-module-secretsharing-partner-{partner_id}-public-key"
+    
+    try:
+        response = secret_manager.get_secret_value(SecretId=secret_name)
+        return response["SecretString"]
+    except secret_manager.exceptions.ResourceNotFoundException:
+        return None
+
+
 def get_secret(partner_id: str, secret_name: str) -> Optional[str]:
     """Retrieve a secret from AWS Secrets Manager."""
     try:
