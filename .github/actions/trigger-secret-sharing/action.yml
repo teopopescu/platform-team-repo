@@ -145,12 +145,11 @@ runs:
       if: ${{ inputs.action_type == 'export' }}
       shell: bash
       run: |
-        if [ -z "${{ inputs.secret_name }}" ]; then
-          echo "Error: secret_name is required for export action"
-          exit 1
-        fi
-        echo "Exporting secret for partner: ${{ inputs.partner_id }}, secret: ${{ inputs.secret_name }}"
-        curl -X GET "${{ env.API_GATEWAY_URL }}/secrets/export?partner_id=${{ inputs.partner_id }}&secret_name=${{ inputs.secret_name }}" \
+        echo "Running import for partner: ${{ inputs.partner_id }}"
+        curl -X GET ${{ env.API_GATEWAY_URL }}/secrets/export \
           -H "Content-Type: application/json" \
-          -o exported_secret.asc
-        echo "Exported secret saved to exported_secret.asc"
+          -d '{
+            "partner_id": "${{ inputs.partner_id }}",
+            "secret_name": "myTestSecret",
+            "secret": "SecretKey"
+          }'
