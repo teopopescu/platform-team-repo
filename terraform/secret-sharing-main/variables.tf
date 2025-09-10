@@ -29,7 +29,6 @@ variable "accepted_partner_ids" {
   type = list(object({
     id   = string
     name = string
-    public_key = string
   }))
 }
 

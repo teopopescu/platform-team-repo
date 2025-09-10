@@ -94,13 +94,19 @@ resource "aws_apigatewayv2_route" "pgp" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
-resource "aws_apigatewayv2_route" "secret" {
+resource "aws_apigatewayv2_route" "import_partner" {
   api_id    = aws_apigatewayv2_api.api.id
-  route_key = "POST /secrets/import"
+  route_key = "GET /.well-known/pgp-key"
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
-resource "aws_apigatewayv2_route" "export" {
+resource "aws_apigatewayv2_route" "import_secret" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "POST /partners/import"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "export_secret" {
   api_id    = aws_apigatewayv2_api.api.id
   route_key = "GET /secrets/export"
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
