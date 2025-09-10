@@ -136,7 +136,9 @@ runs:
         curl -X POST ${{ env.API_GATEWAY_URL }}/secrets/import \
           -H "Content-Type: application/json" \
           -d '{
-            "partner_id": "${{ inputs.partner_id }}"
+            "partner_id": "${{ inputs.partner_id }}",
+            "secret_name": "myTestSecret",
+            "secret": "SecretKey"
           }'
 
     - name: Export secret (if action_type is export)
