@@ -93,7 +93,7 @@ runs:
     - name: Get API Gateway URL
       id: get_url
       shell: bash
-      working-directory: platform-repo/terraform/secret-sharing
+      working-directory: platform-repo/terraform/secret-sharing-main
       run: |
         URL=$(terraform output -raw api_gateway_url)
         echo "api_gateway_url=$URL" >> $GITHUB_OUTPUT
