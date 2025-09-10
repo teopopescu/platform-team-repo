@@ -179,7 +179,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if route == "/.well-known/pgp-key":
         return handle_get_pgp_key()
 
-    if route == "/partners/import":
+    if route == "/partner/import":
         return import_partner(event)
     
     # if route == "/partners/export/mTLS":

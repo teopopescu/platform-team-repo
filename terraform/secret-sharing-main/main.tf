@@ -96,7 +96,7 @@ resource "aws_apigatewayv2_route" "pgp" {
 
 resource "aws_apigatewayv2_route" "import_partner" {
   api_id    = aws_apigatewayv2_api.api.id
-  route_key = "POST /partners/import"
+  route_key = "POST /partner/import"
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
