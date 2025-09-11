@@ -2,6 +2,9 @@ name: "Provision Secret Sharing Service"
 description: "Reusable action to provision a Secret Sharing Service for a data product using Terraform."
 
 inputs:
+  caller-arn:
+    description: "AWS ARN of the calling role"
+    required: true
   product_name:
     description: "The name of the data product."
     required: true
@@ -24,9 +27,9 @@ inputs:
   AWS_SECRET_ACCESS_KEY:
     description: "AWS secret access key for ECR access"
     required: true
-  AWS_ACCOUNT_ID:
-    description: "AWS account ID"
-    required: true
+  # AWS_ACCOUNT_ID:
+  #   description: "AWS account ID"
+  #   required: true
 
 outputs:
   api_gateway_url:
@@ -84,6 +87,18 @@ runs:
       shell: bash
       working-directory: platform-repo/terraform/secret-sharing-main
       run: terraform init
+
+    - name: Extract AWS Account ID from Caller ARN
+      shell: bash
+      run: |
+        # Extract AWS account ID from ARN (format: arn:aws:sts::ACCOUNT_ID:assumed-role/...)
+        if [[ "${{ inputs.caller-arn }}" =~ arn:aws:sts::([0-9]+): ]]; then
+          echo "AWS_ACCOUNT_ID=${BASH_REMATCH[1]}" >> $GITHUB_ENV
+          echo "Extracted AWS Account ID: ${BASH_REMATCH[1]}"
+        else
+          echo "::error::Failed to extract AWS Account ID from ARN: ${{ inputs.caller-arn }}"
+          exit 1
+        fi
 
     - name: Terraform Apply
       shell: bash

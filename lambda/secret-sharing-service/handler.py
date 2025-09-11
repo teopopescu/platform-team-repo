@@ -12,7 +12,7 @@ import boto3
 secret_manager = boto3.client('secretsmanager')
 
 from pgp import generate_pgp_key, get_public_key, encrypt_with_public_key
-from secrets_manager import upsert_partner_public_key, upsert_secret, get_secret, get_partner_public_key
+from secrets_manager import upsert_partner_public_key, upsert_secret, get_secret
 
 partners = os.getenv("ACCEPTED_PARTNER_IDS")
 if not partners:
@@ -119,35 +119,34 @@ def import_secret(event: Dict[str, Any]) -> Dict[str, Any]:
     return reply_with_json(500, {"message": "Failed to process secret"})
 
 def export_secret(event: Dict[str, Any]) -> Dict[str, Any]:
+
+    #TODO: Apply restriction on tags- export only if secret is tagged with the corresponding partner id
+
     method = event.get("requestContext", {}).get("http", {}).get("method")
     if method != "GET":
         return reply_with_json(405, {"message": "Only GET is allowed"})
-        
+
     # Get query parameters
-    data = {}
-    try:
-        data = json.loads(event.get("body") or "{}")
-    except json.JSONDecodeError:
-        return reply_with_json(400, {"message": "Invalid JSON body"})
+    query_params = event.get("queryStringParameters", {}) or {}
     required_params = {"partner_id", "secret_name"}
-    missing_params = required_params - set(data.keys())
-    
+    missing_params = required_params - set(query_params.keys())
+
     if missing_params:
         return reply_with_json(400, {"message": f"Missing required parameters: {', '.join(missing_params)}"})
     
-    partner_id = data["partner_id"]
-    secret_name = data["secret_name"]
+    partner_id = query_params["partner_id"]
+    secret_name = query_params["secret_name"]
     
     # Get the partner's public key
     public_key = get_partner_public_key(partner_id)
     if not public_key:
         return reply_with_json(404, {"message": "Partner public key not found"})
-    
+
     # Get the secret
     secret = get_secret(partner_id, secret_name)
     if not secret:
-        return reply_with_json(404, {"message": "Secret not found"})
-    
+            return reply_with_json(404, {"message": "Secret not found"})
+
     try:
         # Encrypt the secret with the partner's public key
         encrypted_secret = encrypt_with_public_key(public_key, secret)
@@ -167,7 +166,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     if route == "/partner/import":
         return import_partner(event)
-    
+        
     if route == "/secrets/export":
         return export_secret(event)
 
