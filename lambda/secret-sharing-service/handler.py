@@ -12,7 +12,7 @@ import boto3
 secret_manager = boto3.client('secretsmanager')
 
 from pgp import generate_pgp_key, get_public_key, encrypt_with_public_key
-from secrets_manager import upsert_partner_public_key, upsert_secret, get_secret
+from secrets_manager import upsert_partner_public_key, upsert_secret, get_secret, get_partner_public_key
 
 partners = os.getenv("ACCEPTED_PARTNER_IDS")
 if not partners:
