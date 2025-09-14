@@ -154,11 +154,17 @@ def export_secret(event: Dict[str, Any]) -> Dict[str, Any]:
     try:
         # Encrypt the secret with the partner's public key
         encrypted_secret = encrypt_with_public_key(public_key, secret)
-        return reply_with_json(200, {
-            "encrypted_secret": encrypted_secret,
-            "partner_id": partner_id,
-            "secret_name": secret_name
-        })
+        
+        # Return raw PGP message with proper headers for .asc file
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": "application/pgp-encrypted",
+                "Content-Disposition": f'attachment; filename="{secret_name}.asc"',
+            },
+            "body": encrypted_secret,
+            "isBase64Encoded": False
+        }
     except Exception as e:
         logging.error(f"Error encrypting secret: {str(e)}")
         return reply_with_json(500, {"message": "Failed to encrypt secret"})

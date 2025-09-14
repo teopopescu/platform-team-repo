@@ -73,6 +73,22 @@ resource "aws_apigatewayv2_api" "api" {
   name          = "agw-mercury-${var.env}-euwe1-${var.product_name}_service_secret-sharing"
   description   = "API Gateway for sharing secrets for ${var.product_name}."
   protocol_type = "HTTP"
+  cors_configuration {
+    allow_origins = ["*"]
+    allow_methods = ["GET", "POST"]
+    allow_headers = ["content-type"]
+  }
+  
+  # Configure binary media types for PGP messages
+  body = jsonencode({
+    openapi = "3.0.1"
+    info = {
+      title   = "api-secret-sharing-${var.env}"
+      version = "1.0"
+    }
+    paths = {}
+    x-amazon-apigateway-binary-media-types = ["application/pgp-encrypted", "application/octet-stream"]
+  })
 }
 
 resource "aws_apigatewayv2_integration" "lambda" {
@@ -112,10 +128,22 @@ resource "aws_apigatewayv2_route" "export_secret" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
-resource "aws_apigatewayv2_stage" "stage" {
+resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.api.id
   name        = "$default"
   auto_deploy = true
+  
+  # Enable binary media types for the stage
+  default_route_settings {
+    detailed_metrics_enabled = false
+    throttling_burst_limit   = 5000
+    throttling_rate_limit    = 10000
+  }
+  
+  # Configure binary media types
+  stage_variables = {
+    "binaryMediaTypes" = "application/pgp-encrypted,application/octet-stream"
+  }
 }
 
 resource "aws_lambda_permission" "api_gw" {
