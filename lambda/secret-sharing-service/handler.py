@@ -138,8 +138,8 @@ def export_secret(event: Dict[str, Any]) -> Dict[str, Any]:
     if missing_params:
         return reply_with_json(400, {"message": f"Missing required parameters: {', '.join(missing_params)}"})
     
-    partner_id = query_params["partner_id"]
-    secret_name = query_params["secret_name"]
+    partner_id = data["partner_id"]
+    secret_name = data["secret_name"]
     
     # Get the partner's public key
     public_key = get_partner_public_key(partner_id)
