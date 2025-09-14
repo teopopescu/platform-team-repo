@@ -126,10 +126,14 @@ def export_secret(event: Dict[str, Any]) -> Dict[str, Any]:
     if method != "GET":
         return reply_with_json(405, {"message": "Only GET is allowed"})
 
-    # Get query parameters
-    query_params = event.get("queryStringParameters", {}) or {}
+    data = {}
+    try:
+        data = json.loads(event.get("body") or "{}")
+    except json.JSONDecodeError:
+        return reply_with_json(400, {"message": "Invalid JSON body"})
+
     required_params = {"partner_id", "secret_name"}
-    missing_params = required_params - set(query_params.keys())
+    missing_params = required_params - set(data)
 
     if missing_params:
         return reply_with_json(400, {"message": f"Missing required parameters: {', '.join(missing_params)}"})
