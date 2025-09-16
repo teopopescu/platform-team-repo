@@ -85,13 +85,11 @@ runs:
           exit 1
         fi
 
-        # Extract Data Product Name (after '-mercury-')
-        if [[ "$ARN" =~ -mercury-([a-zA-Z0-9_-]+)$ ]]; then
-          RAW_NAME="${BASH_REMATCH[1]}"
-          # Replace underscores with dashes
-          CLEAN_NAME="${RAW_NAME//_/-}"
-          echo "DATA_PRODUCT_NAME=$CLEAN_NAME" >> $GITHUB_ENV
-          echo "Extracted Data Product Name: $CLEAN_NAME"
+        # Extract Data Product Name (after ba-ecp-github-execution-)
+        if [[ "$ARN" =~ ba-ecp-github-execution-([a-zA-Z0-9_-]+)$ ]]; then
+          PRODUCT_NAME="${BASH_REMATCH[1]}"
+          echo "DATA_PRODUCT_NAME=$PRODUCT_NAME" >> $GITHUB_ENV
+          echo "Extracted Data Product Name: $PRODUCT_NAME"
         else
           echo "::error::Failed to extract data product name from ARN: $ARN"
           exit 1
