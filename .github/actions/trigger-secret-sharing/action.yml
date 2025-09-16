@@ -91,6 +91,7 @@ runs:
         if [[ "$ARN" =~ ba-ecp-github-execution-([a-zA-Z0-9_-]+)$ ]]; then
           PRODUCT_NAME="${BASH_REMATCH[1]}"
           echo "DATA_PRODUCT_NAME=$PRODUCT_NAME" >> $GITHUB_ENV
+          echo "data_product_name=$PRODUCT_NAME" >> $GITHUB_OUTPUT
           echo "Extracted Data Product Name: $PRODUCT_NAME"
         else
           echo "::error::Failed to extract data product name from ARN: $ARN"
@@ -127,7 +128,7 @@ runs:
       run: |
         echo "Using image URI: $TF_VAR_IMAGE_URI"
         terraform apply -auto-approve \
-          -var="product_name=${{ inputs.product_name }}" \
+          -var="product_name=${{ steps.extract-account.outputs.data_product_name }}" \
           -var="env=${{ inputs.env }}" \
           -var="contact_email=${{ inputs.contact_email }}" \
           -var="contact_name=${{ inputs.contact_name }}" \
