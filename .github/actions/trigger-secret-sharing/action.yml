@@ -5,9 +5,6 @@ inputs:
   caller-arn:
     description: "AWS ARN of the calling role"
     required: true
-  product_name:
-    description: "The name of the data product."
-    required: true
   env:
     description: "Environment (dev, stage, prod)."
     required: true
@@ -21,12 +18,16 @@ inputs:
     description: "JSON array of accepted partner IDs."
     required: false
     default: "[]"
+  ecr-repo:
+    description: "ECR repository name"
+    required: true
   AWS_ACCESS_KEY_ID:
     description: "AWS access key ID for ECR access"
     required: true
   AWS_SECRET_ACCESS_KEY:
     description: "AWS secret access key for ECR access"
     required: true
+    
   # AWS_ACCOUNT_ID:
   #   description: "AWS account ID"
   #   required: true
@@ -41,7 +42,7 @@ runs:
     - name: Checkout Platform Repo
       uses: actions/checkout@v4
       with:
-        repository: teopopescu/platform-team-repo
+        repository: teopopescu/platform-team-repo 
         ref: test/secret_sharing
         path: platform-repo
 
@@ -69,14 +70,42 @@ runs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
+    - name: Extract AWS Account ID from ARN
+      id: extract-account
+      shell: bash
+      run: |
+        ARN="${{ inputs.caller-arn }}"
+
+        # Extract Account ID (digits after '::')
+        if [[ "$ARN" =~ arn:aws:iam::([0-9]+): ]]; then
+          echo "AWS_ACCOUNT_ID=${BASH_REMATCH[1]}" >> $GITHUB_ENV
+          echo "Extracted AWS Account ID: ${BASH_REMATCH[1]}"
+        else
+          echo "::error::Failed to extract AWS Account ID from ARN: $ARN"
+          exit 1
+        fi
+
+        # Extract Data Product Name (after '-mercury-')
+        if [[ "$ARN" =~ -mercury-([a-zA-Z0-9_-]+)$ ]]; then
+          RAW_NAME="${BASH_REMATCH[1]}"
+          # Replace underscores with dashes
+          CLEAN_NAME="${RAW_NAME//_/-}"
+          echo "DATA_PRODUCT_NAME=$CLEAN_NAME" >> $GITHUB_ENV
+          echo "Extracted Data Product Name: $CLEAN_NAME"
+        else
+          echo "::error::Failed to extract data product name from ARN: $ARN"
+          exit 1
+        fi
+        
     - name: Build & Push Docker Image
       shell: bash
       working-directory: platform-repo/lambda/secret-sharing-service
       id: docker_build
       env:
-        REPO_URL: 957129869060.dkr.ecr.eu-west-1.amazonaws.com/ecr-mercury-dev-euwe1-shared-service_secret-sharing
+        ACCOUNT_ID: ${{ steps.extract-account.outputs.account_id }}
         VERSION: 0.2.5
       run: |
+        REPO_URL="$ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/${{inputs.ecr-repo}}"
         echo "Building Docker image with version: $VERSION"
         FULL_IMAGE_URI="$REPO_URL:$VERSION"
         docker build --provenance=false --platform linux/amd64 -t $FULL_IMAGE_URI .
@@ -87,18 +116,6 @@ runs:
       shell: bash
       working-directory: platform-repo/terraform/secret-sharing-main
       run: terraform init
-
-    - name: Extract AWS Account ID from Caller ARN
-      shell: bash
-      run: |
-        # Extract AWS account ID from ARN (format: arn:aws:sts::ACCOUNT_ID:assumed-role/...)
-        if [[ "${{ inputs.caller-arn }}" =~ arn:aws:sts::([0-9]+): ]]; then
-          echo "AWS_ACCOUNT_ID=${BASH_REMATCH[1]}" >> $GITHUB_ENV
-          echo "Extracted AWS Account ID: ${BASH_REMATCH[1]}"
-        else
-          echo "::error::Failed to extract AWS Account ID from ARN: ${{ inputs.caller-arn }}"
-          exit 1
-        fi
 
     - name: Terraform Apply
       shell: bash
