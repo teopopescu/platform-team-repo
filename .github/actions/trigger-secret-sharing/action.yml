@@ -78,23 +78,27 @@ runs:
 
         # Extract Account ID (digits after '::')
         if [[ "$ARN" =~ arn:aws:iam::([0-9]+): ]]; then
-          echo "AWS_ACCOUNT_ID=${BASH_REMATCH[1]}" >> $GITHUB_ENV
-          echo "Extracted AWS Account ID: ${BASH_REMATCH[1]}"
+          ACCOUNT_ID="${BASH_REMATCH[1]}"
+          echo "AWS_ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV
+          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+          echo "Extracted AWS Account ID: $ACCOUNT_ID"
         else
           echo "::error::Failed to extract AWS Account ID from ARN: $ARN"
           exit 1
         fi
 
-        # Extract Data Product Name (after ba-ecp-github-execution-)
-        if [[ "$ARN" =~ ba-ecp-github-execution-([a-zA-Z0-9_-]+)$ ]]; then
-          PRODUCT_NAME="${BASH_REMATCH[1]}"
-          echo "DATA_PRODUCT_NAME=$PRODUCT_NAME" >> $GITHUB_ENV
-          echo "Extracted Data Product Name: $PRODUCT_NAME"
+        # Extract Data Product Name (after '-mercury-')
+        if [[ "$ARN" =~ -mercury-([a-zA-Z0-9_-]+)$ ]]; then
+          RAW_NAME="${BASH_REMATCH[1]}"
+          # Replace underscores with dashes
+          CLEAN_NAME="${RAW_NAME//_/-}"
+          echo "DATA_PRODUCT_NAME=$CLEAN_NAME" >> $GITHUB_ENV
+          echo "Extracted Data Product Name: $CLEAN_NAME"
         else
           echo "::error::Failed to extract data product name from ARN: $ARN"
           exit 1
         fi
-        
+
     - name: Build & Push Docker Image
       shell: bash
       working-directory: platform-repo/lambda/secret-sharing-service
@@ -103,6 +107,8 @@ runs:
         ACCOUNT_ID: ${{ steps.extract-account.outputs.account_id }}
         VERSION: 0.2.5
       run: |
+        echo "Account ID: $ACCOUNT_ID"
+        
         REPO_URL="$ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/${{inputs.ecr-repo}}"
         echo "Building Docker image with version: $VERSION"
         FULL_IMAGE_URI="$REPO_URL:$VERSION"
