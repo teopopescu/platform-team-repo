@@ -49,8 +49,7 @@ runs:
     - name: Terraform Destroy
       shell: bash
       working-directory: platform-repo/terraform/secret-sharing-main
-      run: terraform destroy -auto-approve
-      accepted_partner_ids: '[{\"id\":\"partner1\",\"name\":\"Partner One\"},{\"id\":\"partner007\",\"name\":\"partner007\"}]'
+      run: terraform destroy -auto-approve -var="accepted_partner_ids=${{ inputs.accepted_partner_ids }}"
 
     - name: Terraform Init
       shell: bash
