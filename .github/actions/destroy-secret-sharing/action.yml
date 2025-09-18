@@ -49,9 +49,7 @@ runs:
     - name: Terraform Destroy
       shell: bash
       working-directory: platform-repo/terraform/secret-sharing-main
-      run: terraform destroy -auto-approve \
-            -var="product_name=${{ steps.extract-account.outputs.data_product_name }}" \
-            -var="env=${{ inputs.env }}"
+      run: terraform destroy -auto-approve
 
     - name: Terraform Init
       shell: bash
