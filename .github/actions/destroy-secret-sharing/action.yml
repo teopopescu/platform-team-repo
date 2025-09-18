@@ -41,6 +41,34 @@ runs:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
 
+    - name: Extract AWS Account ID from ARN
+      id: extract-account
+      shell: bash
+      run: |
+        ARN="${{ inputs.caller-arn }}"
+
+        # Extract Account ID (digits after '::')
+        if [[ "$ARN" =~ arn:aws:iam::([0-9]+): ]]; then
+          ACCOUNT_ID="${BASH_REMATCH[1]}"
+          echo "AWS_ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV
+          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+          echo "Extracted AWS Account ID: $ACCOUNT_ID"
+        else
+          echo "::error::Failed to extract AWS Account ID from ARN: $ARN"
+          exit 1
+        fi
+
+        # Extract Data Product Name (after ba-ecp-github-execution-)
+        if [[ "$ARN" =~ ba-ecp-github-execution-([a-zA-Z0-9_-]+)$ ]]; then
+          PRODUCT_NAME="${BASH_REMATCH[1]}"
+          echo "DATA_PRODUCT_NAME=$PRODUCT_NAME" >> $GITHUB_ENV
+          echo "data_product_name=$PRODUCT_NAME" >> $GITHUB_OUTPUT
+          echo "Extracted Data Product Name: $PRODUCT_NAME"
+        else
+          echo "::error::Failed to extract data product name from ARN: $ARN"
+          exit 1
+        fi
+
     - name: Terraform Init
       shell: bash
       working-directory: platform-repo/terraform/secret-sharing-main
@@ -49,7 +77,7 @@ runs:
     - name: Terraform Destroy
       shell: bash
       working-directory: platform-repo/terraform/secret-sharing-main
-      run: terraform destroy -auto-approve -var="accepted_partner_ids=${{ inputs.accepted_partner_ids }}" -var="env=${{ inputs.env }}" -var="contact_email=${{ inputs.contact_email }}" -var="contact_name=${{ inputs.contact_name }}" -var="env=${{ inputs.env }}"
+      run: terraform destroy -auto-approve -var="accepted_partner_ids=${{ inputs.accepted_partner_ids }}" -var="env=${{ inputs.env }}" -var="contact_email=${{ inputs.contact_email }}" -var="contact_name=${{ inputs.contact_name }}" -var="env=${{ inputs.env }}" -var="product_name=${{ steps.extract-account.outputs.data_product_name }}"
 
     - name: Terraform Init
       shell: bash
