@@ -49,7 +49,9 @@ runs:
     - name: Terraform Destroy
       shell: bash
       working-directory: platform-repo/terraform/secret-sharing-main
-      run: terraform destroy -auto-approve -var="accepted_partner_ids=${{ inputs.accepted_partner_ids }}"
+      run: terraform destroy -auto-approve -var="accepted_partner_ids=${{ inputs.accepted_partner_ids }}" -var="env=${{ inputs.env }}" \
+          -var="contact_email=${{ inputs.contact_email }}" \
+          -var="contact_name=${{ inputs.contact_name }}" \
 
     - name: Terraform Init
       shell: bash
