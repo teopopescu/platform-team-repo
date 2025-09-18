@@ -1,0 +1,68 @@
+name: "Provision Secret Sharing Service"
+description: "Reusable action to provision a Secret Sharing Service for a data product using Terraform."
+
+inputs:
+  caller-arn:
+    description: "AWS ARN of the calling role"
+    required: true
+  env:
+    description: "Environment (dev, stage, prod)."
+    required: true
+  contact_email:
+    description: "Contact email for the data product team."
+    required: true
+  contact_name:
+    description: "Contact name for the data product team."
+    required: true
+  accepted_partner_ids:
+    description: "JSON array of accepted partner IDs."
+    required: false
+    default: "[]"
+  ecr-repo:
+    description: "ECR repository name"
+    required: true
+  AWS_ACCESS_KEY_ID:
+    description: "AWS access key ID for ECR access"
+    required: true
+  AWS_SECRET_ACCESS_KEY:
+    description: "AWS secret access key for ECR access"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout Platform Repo
+      uses: actions/checkout@v4
+      with:
+        repository: teopopescu/platform-team-repo 
+        ref: test/secret_sharing
+        path: platform-repo
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Terraform Init
+      shell: bash
+      working-directory: platform-repo/terraform/secret-sharing-main
+      run: terraform init
+
+    - name: Terraform Destroy
+      shell: bash
+      working-directory: platform-repo/terraform/secret-sharing-main
+      run: terraform destroy -auto-approve \
+            -var="product_name=${{ steps.extract-account.outputs.data_product_name }}" \
+            -var="env=${{ inputs.env }}" \
+            -var="contact_email=${{ inputs.contact_email }}" \
+            -var="contact_name=${{ inputs.contact_name }}" \
+            -var="accepted_partner_ids=${{ inputs.accepted_partner_ids }}"
+
+    - name: Terraform Init
+      shell: bash
+      working-directory: platform-repo/terraform/secret-sharing-infra
+      run: terraform init
+
+    - name: Terraform Destroy
+      shell: bash
+      working-directory: platform-repo/terraform/secret-sharing-infra
+      run: terraform destroy -auto-approve
+      
